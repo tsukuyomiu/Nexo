@@ -1,6 +1,8 @@
 // Cliente oficial de integração com o Back-End FastAPI (http://localhost:8000/api/v1)
 
-export const API_BASE_URL = "http://localhost:8000/api/v1";
+export const API_BASE_URL =
+  (typeof import.meta !== "undefined" && import.meta.env && (import.meta.env.VITE_API_URL as string)) ||
+  "http://localhost:8000/api/v1";
 
 const TOKEN_KEY = "nexo:auth-token";
 const USER_KEY = "nexo:auth-user";
