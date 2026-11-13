@@ -1,0 +1,98 @@
+{
+  "metadata": {
+    "project": "Projeto Nexo",
+    "version": "1.0.0",
+    "description": "Seeds iniciais de Administrador/Auditor e Usuário de Demonstração do Projeto Nexo."
+  },
+  "users": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Administrador Nexo",
+      "email": "admin@nexo.com",
+      "password_plain_for_seed": "Admin@Nexo2026",
+      "role": "admin",
+      "terms_accepted": true,
+      "profile": {
+        "phone": "+55 (11) 99999-0001",
+        "birthDate": "1995-05-15",
+        "address": "Av. Paulista, 1000 - São Paulo, SP",
+        "currency": "BRL",
+        "twoFactorEnabled": false
+      },
+      "sample_goals": [
+        {
+          "month": "2026-11",
+          "revenueTarget": 20000.00,
+          "expenseLimit": 8000.00
+        }
+      ],
+      "sample_transactions": [
+        {
+          "id": "10000000-0000-4000-8000-000000000001",
+          "description": "Consultoria de Arquitetura e Dados",
+          "amount": 8500.00,
+          "date": "2026-11-05",
+          "category": "Serviços",
+          "type": "income",
+          "status": "confirmado",
+          "paymentMethod": "Pix",
+          "contact": "TechCorp Brasil Ltda",
+          "documentRef": "NFS-e #2026-041",
+          "recurring": true
+        },
+        {
+          "id": "10000000-0000-4000-8000-000000000002",
+          "description": "Infraestrutura Cloud e Servidores",
+          "amount": 640.50,
+          "date": "2026-11-07",
+          "category": "Serviços",
+          "type": "expense",
+          "status": "confirmado",
+          "paymentMethod": "Cartão de Crédito",
+          "contact": "AWS Cloud Services",
+          "documentRef": "INV-99812",
+          "recurring": true
+        },
+        {
+          "id": "10000000-0000-4000-8000-000000000003",
+          "description": "Compras Supermercado e Copa Escritório",
+          "amount": 920.00,
+          "date": "2026-11-09",
+          "category": "Supermercado",
+          "type": "expense",
+          "status": "confirmado",
+          "paymentMethod": "Cartão de Débito",
+          "contact": "Atacadão Empresarial",
+          "documentRef": "NF-e #88310",
+          "recurring": false
+        },
+        {
+          "id": "10000000-0000-4000-8000-000000000004",
+          "description": "Licenciamento SaaS Gestor Comercial",
+          "amount": 4200.00,
+          "date": "2026-11-18",
+          "category": "Vendas",
+          "type": "income",
+          "status": "pendente",
+          "paymentMethod": "Boleto",
+          "contact": "Grupo Horizonte S.A.",
+          "documentRef": "NFS-e #2026-045",
+          "recurring": true
+        },
+        {
+          "id": "10000000-0000-4000-8000-000000000005",
+          "description": "Imposto Simples Nacional (DAS Mensal)",
+          "amount": 765.00,
+          "date": "2026-11-20",
+          "category": "Impostos",
+          "type": "expense",
+          "status": "pendente",
+          "paymentMethod": "Boleto",
+          "contact": "Receita Federal / PGFN",
+          "documentRef": "DAS-11/2026",
+          "recurring": true
+        }
+      ]
+    }
+  ]
+}
