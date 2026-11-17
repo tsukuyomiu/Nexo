@@ -1,14 +1,4 @@
-import {
-  Accessibility,
-  Check,
-  Contrast,
-  Keyboard,
-  RotateCcw,
-  Volume2,
-  X,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+import { Accessibility, Contrast, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAccessibility } from "@/hooks/useAccessibility";
@@ -34,29 +24,31 @@ export function AccessibilityWidget() {
       }
     }
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener(KeyboardEvent ? "keydown" : "", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
 
-  // Carrega o VLibras (assistente de língua de sinais oficial do Brasil) sob demanda
-  function handleActivateVLibras() {
+  // Carrega e inicializa o VLibras automaticamente para estar sempre ativo na tela
+  useEffect(() => {
     if (typeof window === "undefined") return;
-    if ((window as any).VLibras) {
-      toast.info("O assistente VLibras já está carregado na tela.");
-      return;
+    if ((window as any).VLibras) return;
+
+    const existingScript = document.querySelector('script[src*="vlibras-plugin.js"]');
+    if (!existingScript) {
+      const script = document.createElement("script");
+      script.src = "https://vlibras.gov.br/app/vlibras-plugin.js";
+      script.async = true;
+      script.onload = () => {
+        try {
+          if ((window as any).VLibras) {
+            new (window as any).VLibras.Widget("https://vlibras.gov.br/app");
+          }
+        } catch {
+          // Inicialização silenciosa
+        }
+      };
+      document.body.appendChild(script);
     }
-    const script = document.createElement("script");
-    script.src = "https://vlibras.gov.br/app/vlibras-plugin.js";
-    script.onload = () => {
-      if ((window as any).VLibras) {
-        new (window as any).VLibras.Widget("https://vlibras.gov.br/app");
-        toast.success("VLibras ativado com sucesso!");
-      }
-    };
-    script.onerror = () => {
-      toast.error("Não foi possível carregar o VLibras. Verifique sua conexão.");
-    };
-    document.body.appendChild(script);
-  }
+  }, []);
 
   return (
     <>
@@ -65,7 +57,7 @@ export function AccessibilityWidget() {
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          title="Abrir menu de acessibilidade (Alt + A)"
+          title="Abrir menu de acessibilidade"
           aria-label="Abrir painel de acessibilidade"
           aria-expanded={isOpen}
           className="group flex h-11 w-11 items-center justify-center rounded-full bg-[#0D213A] text-white shadow-lg transition-transform hover:scale-110 hover:bg-[#1D63DC] focus:outline-none focus-visible:ring-3 focus-visible:ring-[#38BDF8]"
@@ -171,42 +163,6 @@ export function AccessibilityWidget() {
                     }`}
                   />
                 </button>
-              </div>
-
-              {/* VLibras (Acessibilidade em Libras) */}
-              <div className="flex items-center justify-between rounded-xl border border-border bg-muted/20 p-2.5">
-                <div>
-                  <span className="font-bold text-foreground">Intérprete VLibras</span>
-                  <p className="text-[11px] text-muted-foreground">Tradução em Libras (Gov.br)</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleActivateVLibras}
-                  className="rounded-lg bg-[#0D213A] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#1D63DC] transition"
-                >
-                  Ativar
-                </button>
-              </div>
-
-              {/* Atalhos de Teclado */}
-              <div className="rounded-xl border border-border bg-muted/10 p-2.5">
-                <span className="font-bold text-foreground flex items-center gap-1.5">
-                  <Keyboard className="h-3.5 w-3.5 text-muted-foreground" /> Atalhos de Teclado
-                </span>
-                <ul className="mt-1.5 flex flex-col gap-1 text-[11px] text-muted-foreground">
-                  <li className="flex justify-between">
-                    <span>Ir para o conteúdo:</span> <kbd className="font-mono font-bold text-foreground">Alt + 1</kbd>
-                  </li>
-                  <li className="flex justify-between">
-                    <span>Alternar alto contraste:</span> <kbd className="font-mono font-bold text-foreground">Alt + 2</kbd>
-                  </li>
-                  <li className="flex justify-between">
-                    <span>Aumentar tamanho do texto:</span> <kbd className="font-mono font-bold text-foreground">Alt + 3</kbd>
-                  </li>
-                  <li className="flex justify-between">
-                    <span>Restaurar padrão:</span> <kbd className="font-mono font-bold text-foreground">Alt + 0</kbd>
-                  </li>
-                </ul>
               </div>
 
               {/* Restaurar Padrões */}
