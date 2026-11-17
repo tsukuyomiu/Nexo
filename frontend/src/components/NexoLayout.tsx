@@ -10,7 +10,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { FieldLabel } from "@/components/FieldLabel";
 import {
@@ -330,16 +330,36 @@ export function PasswordStrengthMeter({ password }: { password: string }) {
   );
 }
 
-export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
+export function SocialButtons({ appleIcon: _appleIcon = false }: { appleIcon?: boolean }) {
   const navigate = useNavigate();
-  const { authenticateSession } = useTransactions();
-  const [providerModal, setProviderModal] = useState<"google" | "apple" | null>(null);
+  const { authenticateSession, setAvatarUrl } = useTransactions();
+  const [providerModal, setProviderModal] = useState<"google" | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Carrega apenas as contas salvas no próprio navegador do usuário (sem contas fixas no código)
+  const googleClientId =
+    (typeof import.meta !== "undefined" &&
+      import.meta.env &&
+      (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)) ||
+    (typeof window !== "undefined"
+      ? window.localStorage.getItem("nexo:google-client-id") || ""
+      : "");
+
+  // Carrega o script oficial do Google Identity Services (OAuth 2.0)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!document.querySelector('script[src*="accounts.google.com/gsi/client"]')) {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      document.body.appendChild(script);
+    }
+  }, []);
+
+  // Carrega apenas as contas salvas no próprio navegador do usuário
   const [savedAccounts, setSavedAccounts] = useState<Array<{ name: string; email: string }>>(() => {
     if (typeof window === "undefined") return [];
     try {
@@ -384,19 +404,60 @@ export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
     }
   }
 
-  function openModal(provider: "google" | "apple") {
-    setProviderModal(provider);
+  function handleGoogleClick() {
+    const g = typeof window !== "undefined" ? (window as any).google : undefined;
+    if (googleClientId && g?.accounts?.oauth2) {
+      try {
+        const tokenClient = g.accounts.oauth2.initTokenClient({
+          client_id: googleClientId.trim(),
+          scope: "openid email profile",
+          callback: async (tokenResponse: { access_token?: string; error?: string }) => {
+            if (tokenResponse.error || !tokenResponse.access_token) {
+              return;
+            }
+            try {
+              const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+                headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+              });
+              const info = await res.json();
+              if (info?.email) {
+                const userName = info.name || info.email.split("@")[0];
+                if (info.picture) {
+                  try {
+                    window.localStorage.setItem(
+                      `nexo_avatar_${info.email.trim().toLowerCase()}`,
+                      info.picture,
+                    );
+                    setAvatarUrl(info.picture);
+                  } catch {
+                    // Ignora erro
+                  }
+                }
+                await loginWithGoogleIdentity(userName, info.email);
+              }
+            } catch {
+              toast.error("Não foi possível obter os dados da sua conta Google.");
+            }
+          },
+        });
+        tokenClient.requestAccessToken({ prompt: "select_account" });
+        return;
+      } catch {
+        // Se houver bloqueio de popup, abre o seletor integrado
+      }
+    }
+    setProviderModal("google");
     setName("");
     setEmail("");
     setPassword("");
   }
 
-  async function quickLoginAccount(accName: string, accEmail: string) {
-    if (!providerModal || loading) return;
+  async function loginWithGoogleIdentity(accName: string, accEmail: string) {
+    if (loading) return;
     setLoading(true);
     try {
       const res = await apiOAuthLogin({
-        provider: providerModal,
+        provider: "google",
         email: accEmail.trim(),
         name: accName.trim(),
       });
@@ -409,7 +470,11 @@ export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.toLowerCase().includes("fetch") || msg.toLowerCase().includes("network") || msg.toLowerCase().includes("failed")) {
+      if (
+        msg.toLowerCase().includes("fetch") ||
+        msg.toLowerCase().includes("network") ||
+        msg.toLowerCase().includes("failed")
+      ) {
         rememberAccount(accName, accEmail);
         await authenticateSession("offline-demo-token", {
           id: "demo-user",
@@ -427,6 +492,11 @@ export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function quickLoginAccount(accName: string, accEmail: string) {
+    if (!providerModal || loading) return;
+    await loginWithGoogleIdentity(accName, accEmail);
   }
 
   async function handleOAuthSubmit(e: React.FormEvent) {
@@ -448,7 +518,7 @@ export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
     setLoading(true);
     try {
       const res = await apiOAuthLogin({
-        provider: providerModal,
+        provider: "google",
         email: email.trim(),
         name: name.trim(),
         password: password.trim() || undefined,
@@ -462,7 +532,11 @@ export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.toLowerCase().includes("fetch") || msg.toLowerCase().includes("network") || msg.toLowerCase().includes("failed")) {
+      if (
+        msg.toLowerCase().includes("fetch") ||
+        msg.toLowerCase().includes("network") ||
+        msg.toLowerCase().includes("failed")
+      ) {
         rememberAccount(name, email);
         await authenticateSession("offline-demo-token", {
           id: "demo-user",
@@ -489,13 +563,13 @@ export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
         <span>Ou continue com</span>
         <span className="h-px flex-1 bg-border" />
       </div>
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="flex flex-col">
         <button
           type="button"
-          onClick={() => openModal("google")}
+          onClick={handleGoogleClick}
           aria-label="Continuar com Google"
           title="Entrar com conta Google (Gmail)"
-          className="nexo-btn-fluid inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 text-xs font-semibold text-foreground shadow-2xs hover:bg-muted/70"
+          className="nexo-btn-fluid inline-flex h-10 w-full items-center justify-center gap-2.5 rounded-lg border border-border bg-card px-4 text-xs font-semibold text-foreground shadow-2xs hover:bg-muted/70"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
             <path
@@ -515,17 +589,7 @@ export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
               fill="#EA4335"
             />
           </svg>
-          <span>Google</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => openModal("apple")}
-          aria-label="Continuar com Apple"
-          title="Entrar com ID Apple"
-          className="nexo-btn-fluid inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 text-xs font-semibold text-foreground shadow-2xs hover:bg-muted/70"
-        >
-          {appleIcon && <AppleIcon />}
-          <span>Apple</span>
+          <span>Continuar com o Google</span>
         </button>
       </div>
 
@@ -533,20 +597,13 @@ export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {providerModal === "google" ? (
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-secondary text-xs font-bold text-secondary-foreground">
-                  G
-                </span>
-              ) : (
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-primary-foreground">
-                  <AppleIcon />
-                </span>
-              )}
-              Escolha uma conta {providerModal === "google" ? "Google" : "Apple"}
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-secondary text-xs font-bold text-secondary-foreground">
+                G
+              </span>
+              Escolha uma conta Google
             </DialogTitle>
             <DialogDescription>
-              Clique na sua conta conectada para entrar imediatamente ou cadastre uma nova conta
-              abaixo.
+              Clique na sua conta conectada para entrar imediatamente ou informe seu Gmail abaixo.
             </DialogDescription>
           </DialogHeader>
 
@@ -618,7 +675,7 @@ export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
 
             <div>
               <label className="mb-1 block text-xs font-bold text-foreground">
-                E-mail ({providerModal === "google" ? "Gmail" : "iCloud / Apple ID"})
+                E-mail (Gmail)
               </label>
               <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3">
                 <Mail className="h-4 w-4 text-muted-foreground" />
