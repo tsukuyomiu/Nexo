@@ -1,8 +1,19 @@
-// Cliente oficial de integração com o Back-End FastAPI (http://localhost:8000/api/v1)
+// Cliente de comunicação com o back-end FastAPI
 
-export const API_BASE_URL =
-  (typeof import.meta !== "undefined" && import.meta.env && (import.meta.env.VITE_API_URL as string)) ||
-  "http://localhost:8000/api/v1";
+function resolveApiBaseUrl(): string {
+  const envUrl =
+    typeof import.meta !== "undefined" && import.meta.env
+      ? (import.meta.env.VITE_API_URL as string | undefined)
+      : undefined;
+  if (envUrl) return envUrl;
+
+  if (typeof window !== "undefined" && window.location.protocol === "http:") {
+    return `http://${window.location.hostname}:8000/api/v1`;
+  }
+  return "http://localhost:8000/api/v1";
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 const TOKEN_KEY = "nexo:auth-token";
 const USER_KEY = "nexo:auth-user";
@@ -298,7 +309,6 @@ export interface GeneratedReportApi {
   report_id: string;
   title: string;
   period: string;
-  hash_sha256: string;
   created_at: string;
   data: Record<string, unknown>;
 }

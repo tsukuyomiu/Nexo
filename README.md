@@ -65,11 +65,11 @@
 <br>
 
 <details>
-  <summary>Tabela de Conteudos</summary>
+  <summary>Tabela de Conteúdos</summary>
   <ul>
     <li><a href="#visao-geral">Visão Geral</a></li>
     <li><a href="#telas-do-projeto">Telas do Projeto</a></li>
-    <li><a href="#tecnologias-e-arquitetura">Tecnologias e Arquitetura</a></li>
+    <li><a href="#tecnologias-e-arquitetura">Tecnologias, Arquitetura e Padrões</a></li>
     <li><a href="#equipe">Equipe</a></li>
     <li><a href="#como-rodar">Como Rodar</a></li>
   </ul>
@@ -79,10 +79,10 @@
 
 <h2 id="visao-geral">Visão Geral</h2>
 
-O Projeto Nexo é um sistema voltado para a área de Perícia Computacional. O foco principal é aliar alta performance com simplicidade acadêmica, fornecendo uma plataforma robusta para a análise e a emissão de relatórios forenses. O sistema visa facilitar o trabalho de peritos e investigadores, oferecendo ferramentas ágeis para visualização de logs, métricas e consolidação de dados de forma intuitiva e eficiente.
+O **Projeto Nexo** é uma plataforma web Full-Stack voltada para **Gestão Financeira Empresarial e Auditoria de Dados em Tempo Real**. O foco principal é aliar alta performance com simplicidade acadêmica, fornecendo uma solução intuitiva para o controle de receitas, despesas, metas mensais, emissão de DRE Gerencial e rastreabilidade completa de operações (logs de quem fez, quando fez e o estado dos dados antes e depois).
 
 > [!IMPORTANT]
-> A modelagem inicial do banco prevê quatro tabelas centrais: Usuários, Logs, Projetos_Periciais e Relatórios.
+> A modelagem relacional do banco (`database/sql/`) organiza os dados nas tabelas centrais: `usuarios`, `perfis_preferencias`, `sessoes_tokens`, `codigos_recuperacao`, `lancamentos`, `metas_financeiras`, `relatorios_exportados`, `audit_logs` e `access_logs`, além de 4 Views Analíticas SQL.
 
 
 ---
@@ -90,7 +90,7 @@ O Projeto Nexo é um sistema voltado para a área de Perícia Computacional. O f
 <h2 id="telas-do-projeto">Telas do Projeto</h2>
 
 <div align="center">
-  <img src="docs/images/signup.png" alt="Cadastro Faça parte da Nexus" width="400">
+  <img src="docs/images/signup.png" alt="Cadastro Faça parte da Nexo" width="400">
   <img src="docs/images/login.png" alt="Login" width="400">
   <img src="docs/images/password_reset.png" alt="Recuperação de Senha" width="400">
   <img src="docs/images/password_reset_code.png" alt="Código de Segurança" width="400">
@@ -98,23 +98,29 @@ O Projeto Nexo é um sistema voltado para a área de Perícia Computacional. O f
 
 <br>
 
-O sistema consistirá em pelo menos quatro telas obrigatórias:
+O sistema é composto pelas seguintes telas e fluxos principais:
 
-1. **Autenticação:** Cadastro "Faça parte da Nexus", Login, Recuperação de Senha com E-mail e Inserção de Código de Segurança.
-2. **Dashboard:** Tela de Métricas Forenses.
-3. **Logs:** Terminal e Grid de Logs em tempo real.
-4. **Relatório:** Tela de Relatório Final.
+1. **Autenticação (`/`, `/cadastro`, `/redefinir-senha`):** Cadastro com medidor de força de senha, Login com token JWT e Recuperação de Senha em 2 etapas com código de segurança.
+2. **Dashboard (`/dashboard`):** Painel de métricas financeiras, variação mensal, metas de faturamento/teto de gastos, gráficos interativos (Fluxo de Caixa 6 meses e Despesas por Categoria) e emissão de DRE Gerencial.
+3. **Lançamentos (`/lancamentos`):** Gestão completa de receitas e despesas com filtros combinados, limites e validações de segurança nos formulários (`maxLength` e teto de valor), baixa rápida em 1 clique e exportação CSV.
+4. **Logs do Sistema (`/logs`):** Trilha cronológica de auditoria em tempo real restrita a administradores, com filtros por módulo/usuário, comparativo *Antes e Depois* e exportação de planilha Excel (`.csv`).
+5. **Perfil e Sobre Nós (`/perfil`, `/sobre`):** Edição de dados cadastrais, troca de senha, configuração multimoeda (`BRL`, `USD`, `EUR`, `GBP`) e apresentação da arquitetura e equipe.
 
 
 ---
 
-<h2 id="tecnologias-e-arquitetura">Tecnologias e Arquitetura</h2>
+<h2 id="tecnologias-e-arquitetura">Tecnologias, Arquitetura e Padrões de Código</h2>
 
-A escolha da stack tecnológica foi baseada na necessidade de desempenho, segurança e facilidade de manutenção para o ecossistema pericial:
+A escolha da stack tecnológica e dos padrões de codificação foi baseada em desempenho, segurança e facilidade de manutenção:
 
-* **Frontend:** React 19 com TypeScript, Vite, Tailwind CSS e TanStack Router. Garantem uma interface reativa, construção rápida e excelente experiência de usuário para as visualizações de dados.
-* **Backend:** Python com FastAPI. O FastAPI oferece alta performance e documentação nativa via Swagger, ideal para agilizar o desenvolvimento e o teste das rotas da API.
-* **Banco de Dados:** SQL. A flexibilidade permite o uso de SQLite para ambientes de desenvolvimento e PostgreSQL para produção.
+* **Frontend:** React 19 com TypeScript, Vite, Tailwind CSS, Recharts, Radix UI / shadcn e TanStack Router.
+* **Backend:** Python com FastAPI, SQLAlchemy 2.0 ORM e Pydantic v2, oferecendo alta performance e documentação interativa nativa via Swagger UI (`/docs`).
+* **Banco de Dados:** SQL relacional com suporte automatizado a SQLite (desenvolvimento) e PostgreSQL (produção).
+
+### Padrões de Estilo e Qualidade de Código
+* **PEP 8 (Python Style Guide):** Aplicado no Back-End (`snake_case` para funções e variáveis, `PascalCase` para classes ORM e Schemas, `UPPER_CASE` para constantes, indentação de 4 espaços e organização de imports em blocos).
+* **Airbnb JavaScript & React Style Guide:** Uso estrito de `const`/`let` (ES6+), Functional Components com Hooks, nomenclatura `PascalCase` para componentes `.tsx` e `camelCase` para funções/hooks, e auto-fechamento de tags sem filhos (`<Component />`).
+* **Google HTML/CSS Style Guide:** Indentação de 2 espaços, tags e atributos em letras minúsculas, classes CSS semânticas em `kebab-case` (`.nexo-card`, `.nexo-btn-fluid`), omissão de unidades em valores zero (`0`) e cores hexadecimais abreviadas (`#fff`).
 
 
 ---
@@ -126,7 +132,7 @@ A equipe responsável pelo desenvolvimento e documentação do Projeto Nexo é c
 | Nome | Matrícula | Função |
 |---|---|---|
 | Luann Thayller | 0023194 | Gerente de Projeto, Desenvolvedor Front-End e UI/UX Designer |
-| Gabriel Nonato | 0020241 | Desenvolvedor FullStack |
+| Gabriel Nonato | 0020241 | Desenvolvedor FullStack, Arquiteto Back-End & Engenharia de Dados |
 | Weney Anjos da Silva | 0023218 | Desenvolvedor Back-End e Data Engineer |
 | Luísa Damaceno | 0016112 | Analista de Requisitos |
 | Gabryel Henrique | 0022470 | Assistente Administrativo |
@@ -140,28 +146,26 @@ A equipe responsável pelo desenvolvimento e documentação do Projeto Nexo é c
 Siga os passos abaixo para configurar e executar o projeto em seu ambiente local:
 
 ```bash
-# Abra o terminal
+# Opção rápida no Windows (na raiz do projeto):
+.\start_all.ps1
+# ou execute start_all.bat
 
-# Clone o repositorio
-git clone https://github.com/seu-usuario/projeto-nexo.git
+# --- Passo a passo manual no terminal ---
 
-# Navegue ate a pasta do projeto
-cd projeto-nexo
-
-# Instale as dependencias do backend e inicialize o banco SQL + Seeds
+# 1. Instale as dependências do backend e inicialize o banco SQL + Seeds
 cd backend
 pip install -r requirements.txt
 python -m app.db.scripts.init_db
 
-# Inicie o servidor do backend (FastAPI + Swagger em http://localhost:8000/docs)
+# 2. Inicie o servidor do backend (FastAPI + Swagger em http://localhost:8000/docs)
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Em outro terminal, instale as dependencias e inicie o servidor do frontend
+# 3. Em outro terminal, instale as dependências e inicie o servidor do frontend
 cd frontend
 npm install
 npm run dev
 
-# Para inspecionar todos os logs de auditoria (Quem fez, Hora e O que fez) no terminal:
+# 4. Para inspecionar os logs de auditoria (Quem fez, Hora e O que fez) no terminal:
 cd backend
 python -m app.db.scripts.inspect_logs
 ```

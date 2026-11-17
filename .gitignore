@@ -42,8 +42,14 @@ wheels/
 # Database / Local storage
 *.sqlite3
 *.db
+*.db-shm
+*.db-wal
 backend/data/backups/*
 !backend/data/backups/.gitkeep
+backend/logs/*.jsonl
+backend/logs/*.log
+backend/logs/*.json
+backend/logs/outbox/*
 
 # Environment variables & secrets
 .env

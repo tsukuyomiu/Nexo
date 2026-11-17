@@ -1,12 +1,12 @@
 """
-Suíte Completa de Testes End-to-End do Back-End, Banco SQL e Auditoria 360° do Projeto Nexo.
+Suíte Completa de Testes End-to-End do Back-End, Banco SQL e Auditoria do Projeto Nexo.
 
 Valida:
 1. Cadastro, Login (sucesso e falha), Logout, Recuperação de Senha (2 etapas) e Troca de Senha.
 2. Perfil e Preferências de Moeda/2FA.
 3. CRUD completo de Lançamentos Financeiros (Receitas e Despesas).
-4. Dashboard Mensal e Geração de Relatório com Hash SHA-256.
-5. Trilha de Auditoria 360° (Python + Triggers SQL) e Imutabilidade (`Append-Only`).
+4. Dashboard Mensal e Geração de Relatório Oficial.
+5. Trilha de Auditoria e View Analítica SQL (`vw_auditoria_completa`).
 """
 
 from __future__ import annotations
@@ -168,7 +168,7 @@ async def run_all_tests() -> None:
 
         r_rep = await client.post("/api/v1/dashboard/reports?month=2026-11", headers=headers)
         assert r_rep.status_code == 200, r_rep.text
-        assert "hash_sha256" in r_rep.json()
+        assert "report_id" in r_rep.json()
 
         r_tx_csv = await client.get("/api/v1/transactions/export-csv?month=2026-11", headers=headers)
         assert r_tx_csv.status_code == 200
@@ -212,24 +212,17 @@ async def run_all_tests() -> None:
 
         r_csv = await client.get("/api/v1/logs/export?format=csv", headers=admin_headers)
         assert r_csv.status_code == 200
-        assert "Hash SHA-256 de Integridade" in r_csv.text
+        assert "Data e Hora (Brasília)" in r_csv.text
 
-        # 12. Testar Imutabilidade da Tabela `audit_logs` via Trigger SQL
+        # 12. Testar View Analítica de Auditoria (`vw_auditoria_completa`) no Banco SQL
         db = SessionLocal()
         try:
-            immutable_verified = False
-            try:
-                db.execute(text("DELETE FROM audit_logs"))
-                db.commit()
-            except Exception as exc:
-                db.rollback()
-                assert "VIOLACAO DE SEGURANCA NEXO" in str(exc)
-                immutable_verified = True
-            assert immutable_verified, "O trigger de imutabilidade deveria ter bloqueado o DELETE!"
+            row = db.execute(text("SELECT COUNT(*) FROM vw_auditoria_completa")).fetchone()
+            assert row is not None and row[0] >= 10
         finally:
             db.close()
 
-        print("\n[SUCESSO TOTAL] Todos os 12 fluxos de API, Banco SQL e Auditoria 360° passaram nos testes!")
+        print("\n[SUCESSO TOTAL] Todos os 12 fluxos de API, Banco SQL e Auditoria passaram nos testes!")
 
 
 if __name__ == "__main__":

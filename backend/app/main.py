@@ -1,12 +1,6 @@
 """
-Entrypoint Principal do Back-End do Projeto Nexo (FastAPI).
-
-Orquestra:
-- Inicialização automática do Banco SQL (Tabelas, Índices, Views, Triggers e Seeds)
-- Middleware de Auditoria e Tráfego HTTP (`AuditAccessMiddleware`)
-- Configuração de CORS para integração com o Front-End React/Vite
-- Tratamento global de exceções padronizado
-- Documentação interativa Swagger UI (`/docs`) e ReDoc (`/redoc`)
+Arquivo principal da API do Projeto Nexo (FastAPI).
+Configura o banco de dados, middlewares, rotas e documentação Swagger (/docs).
 """
 
 from __future__ import annotations
@@ -18,7 +12,6 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.middlewares.audit_middleware import AuditAccessMiddleware
 from app.api.routers import auth, dashboard, logs, transactions, users
 from app.core.config import settings
 from app.core.exceptions import (
@@ -32,7 +25,7 @@ from app.db.scripts.init_db import initialize_database
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Inicializa os schemas SQL, Triggers, Views e Seeds automaticamente ao subir a API."""
+    """Inicializa as tabelas SQL e dados iniciais ao subir o servidor."""
     initialize_database()
     yield
 
@@ -40,33 +33,27 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title=settings.NEXO_APP_NAME,
     version=settings.NEXO_VERSION,
-    description=(
-        "API REST oficial do **Projeto Nexo** — Gestão Financeira & Plataforma com "
-        "Auditoria 360° Imutável (Python + SQL Triggers)."
-    ),
+    description="API REST do Projeto Nexo — Gestão Financeira e Auditoria de Logs.",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
-# 1. CORS Middleware (aceita qualquer porta localhost/127.0.0.1 como 8080, 5173, 3000)
+# Configuração de CORS liberada para localhost, rede local (LAN) e front-end em nuvem
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 2. Middleware de Auditoria e Tráfego HTTP 360°
-app.add_middleware(AuditAccessMiddleware)
-
-# 3. Exception Handlers Globais
+# Tratamento de erros da API
 app.add_exception_handler(NexoException, nexo_exception_handler)  # type: ignore[arg-type]
 app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
 
-# 4. Registro dos Routers sob /api/v1
+# Registro das rotas em /api/v1
 api_prefix = settings.NEXO_API_V1_PREFIX
 app.include_router(auth.router, prefix=api_prefix)
 app.include_router(users.router, prefix=api_prefix)
@@ -75,9 +62,9 @@ app.include_router(dashboard.router, prefix=api_prefix)
 app.include_router(logs.router, prefix=api_prefix)
 
 
-@app.get("/", tags=["Health & Status"])
+@app.get("/", tags=["Status"])
 def root() -> Dict[str, Any]:
-    """Rota raiz informativa da API do Projeto Nexo."""
+    """Rota inicial para verificar se a API está online."""
     return {
         "ok": True,
         "service": settings.NEXO_APP_NAME,
@@ -86,14 +73,12 @@ def root() -> Dict[str, Any]:
         "timestamp_brasilia": now_brazil_iso(),
         "timestamp_utc": now_utc_iso(),
         "docs_swagger": "/docs",
-        "audit_timeline_endpoint": f"{api_prefix}/logs/timeline",
-        "audit_full_endpoint": f"{api_prefix}/logs/audit",
     }
 
 
-@app.get("/health", tags=["Health & Status"])
+@app.get("/health", tags=["Status"])
 def healthcheck() -> Dict[str, Any]:
-    """Healthcheck de monitoramento da aplicação."""
+    """Verifica a saúde do servidor."""
     return {
         "status": "healthy",
         "timestamp_brasilia": now_brazil_iso(),

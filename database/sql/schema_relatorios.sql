@@ -11,7 +11,7 @@ PRAGMA foreign_keys = ON;
 -- ----------------------------------------------------------------------------
 -- 1. TABELA: relatorios_exportados
 -- Registra cada geração ou exportação de relatório financeiro ou de auditoria,
--- preservando os parâmetros utilizados e o hash SHA-256 do conteúdo gerado.
+-- preservando os parâmetros e métricas utilizadas.
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS relatorios_exportados (
     id                  TEXT PRIMARY KEY,
@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS relatorios_exportados (
     formato             TEXT NOT NULL DEFAULT 'JSON' CHECK (formato IN ('JSON', 'CSV', 'PDF')),
     filtros_json        TEXT NOT NULL DEFAULT '{}',
     resumo_metricas     TEXT NOT NULL DEFAULT '{}',
-    hash_integridade    TEXT NOT NULL,
     ip_solicitante      TEXT,
     criado_em           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE

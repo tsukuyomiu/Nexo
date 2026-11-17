@@ -20,6 +20,7 @@ import {
   apiUpdateMyPreferences,
   apiUpdateMyProfile,
   apiUpdateTransaction,
+  clearAuthSession,
   getAuthToken,
   getStoredAuthUser,
   setAuthSession,
@@ -55,6 +56,10 @@ function getAvatarStorageKey(email?: string): string {
   return `nexo:avatar:v2:${(email || "default").trim().toLowerCase()}`;
 }
 
+function isOnlineToken(token: string | null): boolean {
+  return Boolean(token && !token.startsWith("offline-"));
+}
+
 export function TransactionsProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -84,14 +89,8 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   async function syncFromBackend() {
     const token = getAuthToken();
     const storedUser = getStoredAuthUser();
-    if (!token) {
-      const savedScope = loadLocalScope();
-      setScope(savedScope);
-      setTransactions(loadTransactions(savedScope));
-      setCurrencyState(loadCurrency());
-      setLoaded(true);
-      return;
-    }
+    const savedScope = loadLocalScope();
+    if (savedScope) setScope(savedScope);
 
     if (storedUser) {
       setRole(storedUser.role || "user");
@@ -104,6 +103,13 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       if (typeof storedUser.twoFactorEnabled === "boolean") {
         setTwoFactorState(storedUser.twoFactorEnabled);
       }
+    }
+
+    if (!isOnlineToken(token)) {
+      setTransactions(loadTransactions(savedScope));
+      if (!storedUser?.currency) setCurrencyState(loadCurrency());
+      setLoaded(true);
+      return;
     }
 
     try {
@@ -122,16 +128,18 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       setCurrencyState(remoteProfile.currency || "BRL");
       setTwoFactorState(Boolean(remoteProfile.twoFactorEnabled));
       setTransactions(remoteTx);
-      setAuthSession(token, {
-        id: remoteProfile.id,
-        name: remoteProfile.name,
-        email: remoteProfile.email,
-        role: remoteProfile.role,
-        currency: remoteProfile.currency,
-        twoFactorEnabled: remoteProfile.twoFactorEnabled,
-      });
+      if (token) {
+        setAuthSession(token, {
+          id: remoteProfile.id,
+          name: remoteProfile.name,
+          email: remoteProfile.email,
+          role: remoteProfile.role,
+          currency: remoteProfile.currency,
+          twoFactorEnabled: remoteProfile.twoFactorEnabled,
+        });
+      }
     } catch {
-      // Se o token expirou ou o servidor reiniciou
+      setTransactions(loadTransactions(savedScope));
     } finally {
       setLoaded(true);
     }
@@ -142,7 +150,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (loaded && scope && !getAuthToken()) {
+    if (loaded && scope && !isOnlineToken(getAuthToken())) {
       saveTransactions(transactions, scope);
     }
   }, [transactions, loaded, scope]);
@@ -166,7 +174,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         } catch {
           // ignore storage quota errors
         }
-        if (getAuthToken()) {
+        if (isOnlineToken(getAuthToken())) {
           void apiLogFrontendEvent(
             "PROFILE_PHOTO_UPDATED",
             dataUrl
@@ -181,13 +189,17 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       setCurrency: (next) => {
         const saved = saveCurrency(next);
         if (saved) setCurrencyState(next);
-        if (getAuthToken()) {
-          void apiUpdateMyPreferences({ currency: next, twoFactorEnabled });
+        if (isOnlineToken(getAuthToken())) {
+          void apiUpdateMyPreferences({ currency: next, twoFactorEnabled }).catch(() => {});
         }
         return saved;
       },
       setTwoFactorEnabled: async (enabled) => {
         if (!getAuthToken()) return false;
+        if (!isOnlineToken(getAuthToken())) {
+          setTwoFactorState(enabled);
+          return true;
+        }
         try {
           const updated = await apiUpdateMyPreferences({
             currency,
@@ -196,24 +208,29 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           setTwoFactorState(Boolean(updated.twoFactorEnabled));
           return true;
         } catch {
-          return false;
+          setTwoFactorState(enabled);
+          return true;
         }
       },
       updateProfile: async (next) => {
         const prepared = prepareProfile(next);
-        if (getAuthToken()) {
-          const updated = await apiUpdateMyProfile(prepared);
-          setProfile({
-            name: updated.name,
-            email: updated.email,
-            phone: updated.phone,
-            birthDate: updated.birthDate,
-            address: updated.address,
-          });
-          setRole(updated.role);
-        } else {
-          setProfile(prepared);
+        if (isOnlineToken(getAuthToken())) {
+          try {
+            const updated = await apiUpdateMyProfile(prepared);
+            setProfile({
+              name: updated.name,
+              email: updated.email,
+              phone: updated.phone,
+              birthDate: updated.birthDate,
+              address: updated.address,
+            });
+            setRole(updated.role);
+            return;
+          } catch {
+            // fallback local
+          }
         }
+        setProfile(prepared);
       },
       resetProfile: () => setProfile({ ...emptyProfile }),
       authenticateSession: async (token, user) => {
@@ -241,8 +258,9 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         setLoaded(true);
       },
       endLocalSession: () => {
-        void apiLogout();
-        if (scope && !getAuthToken()) saveTransactions(transactions, scope);
+        if (isOnlineToken(getAuthToken())) void apiLogout();
+        else clearAuthSession();
+        if (scope && !isOnlineToken(getAuthToken())) saveTransactions(transactions, scope);
         endLocalScope();
         setScope(null);
         setTransactions([]);
@@ -252,11 +270,17 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         setLastAddedId(null);
       },
       add: (data) => {
-        if (getAuthToken()) {
-          void apiCreateTransaction(data).then((created) => {
-            setLastAddedId(created.id);
-            setTransactions((cur) => [created, ...cur]);
-          });
+        if (isOnlineToken(getAuthToken())) {
+          void apiCreateTransaction(data)
+            .then((created) => {
+              setLastAddedId(created.id);
+              setTransactions((cur) => [created, ...cur]);
+            })
+            .catch(() => {
+              const transaction = createTransaction(data);
+              setLastAddedId(transaction.id);
+              setTransactions((cur) => [transaction, ...cur]);
+            });
         } else {
           const transaction = createTransaction(data);
           setLastAddedId(transaction.id);
@@ -264,10 +288,14 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         }
       },
       update: (id, data) => {
-        if (getAuthToken()) {
-          void apiUpdateTransaction(id, data).then((updated) => {
-            setTransactions((cur) => cur.map((t) => (t.id === id ? updated : t)));
-          });
+        if (isOnlineToken(getAuthToken())) {
+          void apiUpdateTransaction(id, data)
+            .then((updated) => {
+              setTransactions((cur) => cur.map((t) => (t.id === id ? updated : t)));
+            })
+            .catch(() => {
+              setTransactions((cur) => cur.map((t) => (t.id === id ? { ...data, id } : t)));
+            });
         } else {
           setTransactions((cur) => cur.map((t) => (t.id === id ? { ...data, id } : t)));
         }
@@ -276,10 +304,16 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         const target = transactions.find((t) => t.id === id);
         if (!target) return;
         const nextStatus = target.status === "confirmado" ? "pendente" : "confirmado";
-        if (getAuthToken()) {
-          void apiPatchTransactionStatus(id, nextStatus).then((updated) => {
-            setTransactions((cur) => cur.map((t) => (t.id === id ? updated : t)));
-          });
+        if (isOnlineToken(getAuthToken())) {
+          void apiPatchTransactionStatus(id, nextStatus)
+            .then((updated) => {
+              setTransactions((cur) => cur.map((t) => (t.id === id ? updated : t)));
+            })
+            .catch(() => {
+              setTransactions((cur) =>
+                cur.map((t) => (t.id === id ? { ...t, status: nextStatus } : t)),
+              );
+            });
         } else {
           setTransactions((cur) =>
             cur.map((t) => (t.id === id ? { ...t, status: nextStatus } : t)),
@@ -287,10 +321,14 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         }
       },
       remove: (id) => {
-        if (getAuthToken()) {
-          void apiDeleteTransaction(id).then(() => {
-            setTransactions((cur) => cur.filter((t) => t.id !== id));
-          });
+        if (isOnlineToken(getAuthToken())) {
+          void apiDeleteTransaction(id)
+            .then(() => {
+              setTransactions((cur) => cur.filter((t) => t.id !== id));
+            })
+            .catch(() => {
+              setTransactions((cur) => cur.filter((t) => t.id !== id));
+            });
         } else {
           setTransactions((cur) => cur.filter((t) => t.id !== id));
         }

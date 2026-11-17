@@ -63,9 +63,9 @@ const TEAM_MEMBERS = [
 const PILLARS = [
   {
     icon: ShieldCheck,
-    title: "Auditoria 360° Imutável",
+    title: "Auditoria de Atividades em Tempo Real",
     description:
-      "Cada ação no sistema registra quem fez, a hora exata de Brasília, o IP e o estado antes/depois do dado, protegido por Triggers SQL Append-Only e Hash SHA-256.",
+      "Cada ação no sistema registra quem fez, a hora exata de Brasília, o IP de origem e o estado antes/depois do dado diretamente no banco de dados relacional.",
   },
   {
     icon: Lock,

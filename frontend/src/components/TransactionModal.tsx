@@ -81,13 +81,24 @@ export function TransactionModal({ open, onOpenChange, type, editing }: Transact
     if (submitting) return; // evita duplo envio
     const next: Errors = {};
     const value = parseBRValue(amount);
-    if (!description.trim()) next.description = "Informe uma descrição.";
-    if (!amount.trim()) next.amount = "Campo obrigatório.";
-    else if (value === null) next.amount = "Informe um valor maior que zero.";
+    if (!description.trim()) {
+      next.description = "Informe uma descrição.";
+    } else if (description.trim().length > 100) {
+      next.description = "A descrição deve ter no máximo 100 caracteres.";
+    }
+
+    if (!amount.trim()) {
+      next.amount = "Campo obrigatório.";
+    } else if (value === null) {
+      next.amount = "Informe um valor maior que zero.";
+    } else if (value > 999999999.99) {
+      next.amount = "Valor máximo permitido é R$ 999.999.999,99.";
+    }
+
     if (!date) next.date = "Informe uma data válida.";
     if (!category) next.category = "Selecione uma categoria.";
     setErrors(next);
-    if (Object.keys(next).length > 0 || value === null) {
+    if (Object.keys(next).length > 0 || value === null || (value !== null && value > 999999999.99)) {
       const first = Object.keys(next)[0];
       if (first) e.currentTarget.querySelector<HTMLElement>(`#tx-${first}`)?.focus();
       return;
@@ -166,11 +177,15 @@ export function TransactionModal({ open, onOpenChange, type, editing }: Transact
                   id="tx-amount"
                   inputMode="decimal"
                   placeholder="0,00"
+                  maxLength={14}
                   value={amount}
                   onChange={(e) => {
-                    setAmount(e.target.value);
-                    if (parseBRValue(e.target.value) !== null)
+                    const raw = e.target.value;
+                    setAmount(raw);
+                    const val = parseBRValue(raw);
+                    if (val !== null && val <= 999999999.99) {
                       setErrors((current) => ({ ...current, amount: undefined }));
+                    }
                   }}
                   aria-invalid={!!errors.amount}
                   aria-required="true"

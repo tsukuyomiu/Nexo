@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Query, status
-from fastapi.responses import PlainTextResponse, Response
+from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
@@ -57,7 +57,6 @@ router = APIRouter(prefix="/logs", tags=["Auditoria 360° & Logs do Sistema"])
 
 class SendLogsEmailRequest(BaseModel):
     to_email: EmailStr
-    incluir_triggers_sql: bool = False
 
 
 class SmtpConfigPayload(BaseModel):
@@ -149,8 +148,6 @@ def _row_to_audit_item(row: AuditLog) -> AuditLogItem:
         dados_novos=_parse_json_safe(row.dados_novos),
         metadados_extras=_parse_json_safe(row.metadados_extras),
         origem_registro=row.origem_registro,
-        hash_anterior=row.hash_anterior,
-        hash_integridade=row.hash_integridade,
     )
 
 
@@ -173,7 +170,6 @@ def _build_csv_bytes(rows: list[AuditLog]) -> bytes:
             "Novo Estado (Depois)",
             "Origem do Log",
             "ID do Log",
-            "Hash SHA-256 de Integridade",
         ]
     )
     for r in rows:
@@ -192,7 +188,6 @@ def _build_csv_bytes(rows: list[AuditLog]) -> bytes:
                 r.dados_novos or "-",
                 r.origem_registro,
                 r.id,
-                r.hash_integridade,
             ]
         )
     return output.getvalue().encode("utf-8")
@@ -267,22 +262,14 @@ def list_audit_logs(
 @router.get("/timeline")
 def get_human_timeline(
     limit: int = Query(default=100, ge=1, le=500),
-    incluir_triggers_sql: bool = Query(
-        default=False, description="Se True, inclui também os logs internos de gatilhos SQL"
-    ),
     email: Optional[str] = Query(default=None, description="Filtrar por e-mail de usuário"),
     user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    """
-    Retorna a linha do tempo de TODOS os usuários para o painel de Administrador.
-    Por padrão oculta os logs redundantes de `SQL_TRIGGER` para focar nas ações reais do site.
-    """
+    """Retorna a linha do tempo de atividades dos usuários para o painel de Administrador."""
     _check_log_access(user, db=db)
 
     query = db.query(AuditLog)
-    if not incluir_triggers_sql:
-        query = query.filter(AuditLog.origem_registro != "SQL_TRIGGER")
     if email:
         query = query.filter(AuditLog.usuario_email.ilike(f"%{email.strip()}%"))
 
@@ -379,18 +366,7 @@ def get_logs_statistics(
     """Retorna métricas agregadas sobre tudo o que ocorreu no sistema."""
     _check_log_access(user, db=db)
 
-    total_audit = (
-        db.query(func.count(AuditLog.id))
-        .filter(AuditLog.origem_registro != "SQL_TRIGGER")
-        .scalar()
-        or 0
-    )
-    total_sql_triggers = (
-        db.query(func.count(AuditLog.id))
-        .filter(AuditLog.origem_registro == "SQL_TRIGGER")
-        .scalar()
-        or 0
-    )
+    total_audit = db.query(func.count(AuditLog.id)).scalar() or 0
     total_access = db.query(func.count(AccessLog.id)).scalar() or 0
 
     by_category = (
@@ -409,7 +385,6 @@ def get_logs_statistics(
             AuditLog.usuario_nome,
             func.count(AuditLog.id).label("total"),
         )
-        .filter(AuditLog.origem_registro != "SQL_TRIGGER")
         .group_by(AuditLog.usuario_email, AuditLog.usuario_nome)
         .order_by(text("total DESC"))
         .limit(10)
@@ -420,7 +395,6 @@ def get_logs_statistics(
     return {
         "ok": True,
         "total_audit_events": total_audit,
-        "total_sql_trigger_events": total_sql_triggers,
         "total_http_requests": total_access,
         "average_http_latency_ms": round(float(avg_latency), 2),
         "events_by_category": {cat: count for cat, count in by_category},
@@ -435,7 +409,6 @@ def get_logs_statistics(
 @router.get("/export")
 def export_audit_logs(
     format: str = Query(default="csv", description="'csv' ou 'json'"),
-    incluir_triggers_sql: bool = Query(default=False),
     limit: int = Query(default=2000, ge=1, le=10000),
     token: Optional[str] = Query(default=None),
     user: Optional[User] = Depends(get_current_user_optional),
@@ -444,10 +417,7 @@ def export_audit_logs(
     """Exporta os logs de auditoria em formato CSV (pronto para Excel pt-BR) ou JSON."""
     _check_log_access(user, db=db, token_query=token)
 
-    query = db.query(AuditLog)
-    if not incluir_triggers_sql:
-        query = query.filter(AuditLog.origem_registro != "SQL_TRIGGER")
-    rows = query.order_by(AuditLog.data_hora_utc.desc()).limit(limit).all()
+    rows = db.query(AuditLog).order_by(AuditLog.data_hora_utc.desc()).limit(limit).all()
 
     if format.lower() == "json":
         payload = [_row_to_audit_item(r).model_dump() for r in rows]
@@ -478,10 +448,7 @@ def send_logs_excel_by_email(
     """
     admin_user = _check_log_access(user, db=db)
 
-    query = db.query(AuditLog)
-    if not payload.incluir_triggers_sql:
-        query = query.filter(AuditLog.origem_registro != "SQL_TRIGGER")
-    rows = query.order_by(AuditLog.data_hora_utc.desc()).limit(2000).all()
+    rows = db.query(AuditLog).order_by(AuditLog.data_hora_utc.desc()).limit(2000).all()
 
     csv_bytes = _build_csv_bytes(rows)
     email_res = send_audit_logs_excel_email(

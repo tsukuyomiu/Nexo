@@ -1,6 +1,5 @@
 """
-Utilitários de segurança, criptografia de senhas (PBKDF2-HMAC-SHA256 OWASP),
-geração de tokens JWT com JTI e códigos de recuperação de 6 dígitos.
+Utilitários de segurança, hash de senhas e geração de tokens JWT para autenticação.
 """
 
 from __future__ import annotations
@@ -16,8 +15,6 @@ import jwt
 
 from app.core.config import settings
 
-# Recomendação OWASP para PBKDF2-HMAC-SHA256: 600.000 iterações
-PBKDF2_ITERATIONS = 600_000
 BRAZIL_TZ = timezone(timedelta(hours=-3))
 
 
@@ -27,49 +24,42 @@ def now_utc() -> datetime:
 
 
 def now_utc_iso() -> str:
-    """Retorna timestamp ISO 8601 em UTC com precisão de milissegundos."""
+    """Retorna timestamp ISO 8601 em UTC."""
     return now_utc().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 def now_brazil_iso() -> str:
-    """Retorna timestamp ISO 8601 no fuso horário de Brasília (America/Sao_Paulo -03:00)."""
+    """Retorna timestamp ISO 8601 no fuso horário de Brasília (-03:00)."""
     return datetime.now(BRAZIL_TZ).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "-03:00"
 
 
 def generate_uuid() -> str:
-    """Gera um UUID v4 em formato string."""
+    """Gera um identificador único UUID."""
     return str(uuid.uuid4())
 
 
 def hash_password(password: str) -> str:
     """
-    Gera um hash seguro da senha usando PBKDF2-HMAC-SHA256 com salt aleatório de 16 bytes.
-    Formato armazenado: `pbkdf2_sha256$<iterations>$<salt_hex>$<hash_hex>`
+    Gera um hash SHA-256 com salt para proteger a senha no banco de dados.
     """
-    salt = secrets.token_hex(16)
-    derived = hashlib.pbkdf2_hmac(
-        "sha256",
-        password.encode("utf-8"),
-        salt.encode("utf-8"),
-        PBKDF2_ITERATIONS,
-    ).hex()
-    return f"pbkdf2_sha256${PBKDF2_ITERATIONS}${salt}${derived}"
+    salt = secrets.token_hex(8)
+    hashed = hashlib.sha256(f"{salt}{password}".encode("utf-8")).hexdigest()
+    return f"{salt}${hashed}"
 
 
 def verify_password(plain_password: str, stored_hash: str) -> bool:
-    """Verifica uma senha em texto puro contra o hash armazenado em tempo constante."""
+    """Verifica se a senha informada confere com o hash salvo."""
     try:
-        algorithm, iterations_str, salt, expected_hex = stored_hash.split("$", 3)
-        if algorithm != "pbkdf2_sha256":
-            return False
-        iterations = int(iterations_str)
-        candidate_hex = hashlib.pbkdf2_hmac(
-            "sha256",
-            plain_password.encode("utf-8"),
-            salt.encode("utf-8"),
-            iterations,
-        ).hex()
-        return hmac.compare_digest(candidate_hex, expected_hex)
+        # Suporte retrocompatível com hashes antigos
+        if stored_hash.startswith("pbkdf2_"):
+            parts = stored_hash.split("$")
+            salt, expected = parts[2], parts[3]
+            candidate = hashlib.pbkdf2_hmac("sha256", plain_password.encode("utf-8"), salt.encode("utf-8"), int(parts[1])).hex()
+            return hmac.compare_digest(candidate, expected)
+
+        salt, expected_hash = stored_hash.split("$", 1)
+        candidate = hashlib.sha256(f"{salt}{plain_password}".encode("utf-8")).hexdigest()
+        return hmac.compare_digest(candidate, expected_hash)
     except Exception:
         return False
 

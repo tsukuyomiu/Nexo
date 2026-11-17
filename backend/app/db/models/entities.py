@@ -158,13 +158,12 @@ class ExportedReport(Base):
     formato: Mapped[str] = mapped_column(String(10), nullable=False, default="JSON")
     filtros_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     resumo_metricas: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
-    hash_integridade: Mapped[str] = mapped_column(String(64), nullable=False)
     ip_solicitante: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     criado_em: Mapped[str] = mapped_column(String(40), nullable=False, default=now_utc_iso)
 
 
 class AuditLog(Base):
-    """Mapeamento da tabela imutável `audit_logs` (schema_logs.sql)."""
+    """Mapeamento da tabela `audit_logs` (schema_logs.sql)."""
 
     __tablename__ = "audit_logs"
 
@@ -189,8 +188,6 @@ class AuditLog(Base):
     dados_novos: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     metadados_extras: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     origem_registro: Mapped[str] = mapped_column(String(30), nullable=False, default="API_PYTHON")
-    hash_anterior: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    hash_integridade: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
 class AccessLog(Base):

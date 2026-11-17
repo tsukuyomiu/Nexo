@@ -2,7 +2,7 @@
 -- PROJETO NEXO - ENGENHARIA DE BANCO DE DADOS (POSTGRESQL PRODUÇÃO)
 -- Arquivo: database/sql/schema_postgresql_prod.sql
 -- Descrição: DDL completo otimizado para PostgreSQL 14+ com UUID nativo,
---            TIMESTAMPTZ, JSONB, Índices GIN e Função Trigger PL/pgSQL.
+--            TIMESTAMPTZ, JSONB e Índices GIN.
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -87,9 +87,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     dados_anteriores    JSONB,
     dados_novos         JSONB,
     metadados_extras    JSONB,
-    origem_registro     VARCHAR(30) NOT NULL DEFAULT 'API_PYTHON',
-    hash_anterior       VARCHAR(64),
-    hash_integridade    VARCHAR(64) NOT NULL
+    origem_registro     VARCHAR(30) NOT NULL DEFAULT 'API_PYTHON'
 );
 
 CREATE INDEX IF NOT EXISTS idx_pg_audit_logs_gin_novos ON audit_logs USING GIN (dados_novos);

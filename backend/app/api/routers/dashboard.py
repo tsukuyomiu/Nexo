@@ -3,12 +3,11 @@ Rotas de Dashboard e Relatórios Financeiros (`/api/v1/dashboard`):
 - GET  `/summary`: Consolida Receitas, Despesas, Saldo, Comparativo com Mês Anterior,
                    Despesas por Categoria e Últimos Lançamentos.
 - POST `/reports`: Gera e registra na tabela `relatorios_exportados` um relatório
-                   oficial com hash SHA-256 de integridade.
+                   oficial consolidado do período.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 from datetime import date
 from typing import Any, Dict, List, Optional
@@ -306,7 +305,6 @@ def generate_financial_report(
 
     metrics_dict = summary_data.model_dump()
     metrics_json = json.dumps(metrics_dict, ensure_ascii=False)
-    report_hash = hashlib.sha256(metrics_json.encode("utf-8")).hexdigest()
 
     report_row = ExportedReport(
         id=generate_uuid(),
@@ -317,7 +315,6 @@ def generate_financial_report(
         formato="JSON",
         filtros_json=json.dumps({"month": period}),
         resumo_metricas=metrics_json,
-        hash_integridade=report_hash,
         ip_solicitante=audit.ip_address,
         criado_em=now_utc_iso(),
     )
@@ -344,7 +341,6 @@ def generate_financial_report(
             "report_id": report_row.id,
             "period": period,
             "totals": summary_data.currentTotals.model_dump(),
-            "sha256": report_hash,
         },
     )
 
@@ -353,7 +349,6 @@ def generate_financial_report(
         "report_id": report_row.id,
         "title": report_row.titulo,
         "period": period,
-        "hash_sha256": report_hash,
         "created_at": report_row.criado_em,
         "data": metrics_dict,
     }

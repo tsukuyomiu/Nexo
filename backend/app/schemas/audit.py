@@ -1,9 +1,9 @@
 """
-Schemas do Sistema de Auditoria 360° e Logs de Acesso.
+Schemas do Sistema de Auditoria e Logs de Acesso.
 Permitem consultar e receber em detalhes:
   - QUEM fez (usuário, e-mail, nome, IP, navegador)
   - QUANDO fez (horário de Brasília -03:00 e UTC)
-  - O QUE fez (ação, resumo humano, antes e depois em JSON, hash SHA-256)
+  - O QUE fez (ação, resumo humano, antes e depois em JSON)
 """
 
 from __future__ import annotations
@@ -35,8 +35,6 @@ class AuditLogItem(BaseModel):
     dados_novos: Optional[Dict[str, Any]] = None
     metadados_extras: Optional[Dict[str, Any]] = None
     origem_registro: str
-    hash_anterior: Optional[str] = None
-    hash_integridade: str
 
 
 class AuditLogListResponse(BaseModel):

@@ -99,12 +99,11 @@ function DashboardPage() {
   const [goalForm, setGoalForm] = useState({ revenueTarget: "", expenseLimit: "" });
   const [savingGoal, setSavingGoal] = useState(false);
 
-  // Modal de DRE Gerencial & Certificado Forense SHA-256
+  // Modal de DRE Gerencial
   const [dreModalOpen, setDreModalOpen] = useState(false);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportCert, setReportCert] = useState<{
     reportId: string;
-    hashSha256: string;
     createdAt: string;
   } | null>(null);
 
@@ -197,21 +196,11 @@ function DashboardPage() {
         const res = await apiGenerateFinancialReport(month);
         setReportCert({
           reportId: res.report_id,
-          hashSha256: res.hash_sha256,
           createdAt: res.created_at,
         });
       } else {
-        const pseudoHash = Array.from(
-          `${month}-${totals.income}-${totals.expense}-${filtered.length}`,
-        )
-          .reduce((acc, ch) => ((acc << 5) - acc + ch.charCodeAt(0)) | 0, 0)
-          .toString(16)
-          .replace("-", "a")
-          .padStart(16, "0")
-          .repeat(4);
         setReportCert({
-          reportId: `local-${month}`,
-          hashSha256: pseudoHash,
+          reportId: `NEXO-${month}`,
           createdAt: new Date().toISOString(),
         });
       }
@@ -762,12 +751,12 @@ function DashboardPage() {
             <div className="rounded-xl border border-border bg-card p-3.5">
               <div className="flex items-center gap-1.5 font-semibold text-foreground">
                 <ShieldCheck className="h-4 w-4 text-secondary" />
-                Assinatura de Integridade (SHA-256)
+                Protocolo de Emissão Nexo
               </div>
               <div className="mt-2 rounded-md bg-muted px-2.5 py-2 font-mono text-[10px] break-all text-muted-foreground">
                 {generatingReport
-                  ? "Calculando hash criptográfico..."
-                  : reportCert?.hashSha256 || "Hash verificado"}
+                  ? "Registrando relatório..."
+                  : `Protocolo: ${reportCert?.reportId || `NEXO-${month}`}`}
               </div>
             </div>
 

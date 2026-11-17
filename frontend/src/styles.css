@@ -295,7 +295,7 @@ body {
   box-shadow:
     0 1px 3px 0 rgba(13, 33, 58, 0.12),
     0 8px 24px -4px rgba(13, 33, 58, 0.22);
-  color: #ffffff;
+  color: #fff;
   transition:
     transform 0.32s cubic-bezier(0.16, 1, 0.3, 1),
     box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1),
@@ -391,7 +391,7 @@ input:-webkit-autofill:focus,
 textarea:-webkit-autofill,
 select:-webkit-autofill {
   -webkit-text-fill-color: #0b192c;
-  -webkit-box-shadow: 0 0 0px 1000px #ffffff inset;
-  box-shadow: 0 0 0px 1000px #ffffff inset;
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  box-shadow: 0 0 0 1000px #fff inset;
   transition: background-color 9999s ease-in-out 0s;
 }

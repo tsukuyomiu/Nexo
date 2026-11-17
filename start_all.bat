@@ -9,10 +9,10 @@ cd /d "%~dp0backend"
 python -m app.db.scripts.init_db
 
 echo 2. Subindo Back-End em nova janela (Porta 8000)...
-start "Nexo Backend (FastAPI)" cmd /k "cd /d "%~dp0backend" && python -m uvicorn app.main:app --reload --port 8000"
+start "Nexo Backend (FastAPI)" cmd /k "cd /d "%~dp0backend" && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
 
 echo 3. Subindo Front-End em nova janela...
-start "Nexo Frontend (React/Vite)" cmd /k "cd /d "%~dp0frontend" && npm run dev"
+start "Nexo Frontend (React/Vite)" cmd /k "cd /d "%~dp0frontend" && npm run dev -- --host"
 
 echo ========================================================
 echo Pronto! 
