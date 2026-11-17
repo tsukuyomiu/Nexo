@@ -7,7 +7,10 @@ function resolveApiBaseUrl(): string {
       : undefined;
   if (envUrl) return envUrl;
 
-  if (typeof window !== "undefined" && window.location.protocol === "http:") {
+  if (typeof window !== "undefined") {
+    if (window.location.protocol === "https:") {
+      return `${window.location.origin}/api/v1`;
+    }
     return `http://${window.location.hostname}:8000/api/v1`;
   }
   return "http://localhost:8000/api/v1";
@@ -79,6 +82,9 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if ((res.status === 404 || res.status >= 502) && !data?.detail) {
+      throw new Error("Failed to fetch");
+    }
     const msg = data?.detail || data?.message || `Erro na comunicação com o servidor (${res.status}).`;
     throw new Error(msg);
   }
