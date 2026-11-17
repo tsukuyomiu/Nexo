@@ -375,14 +375,23 @@ function LogsPage() {
               </p>
             </div>
 
-            <div className="nexo-card nexo-stagger-2 p-5">
-              <span className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                <ShieldCheck className="h-4 w-4 text-income" /> Auditoria do Sistema
-              </span>
-              <p className="mt-2 text-2xl font-bold text-income">Ativa em Tempo Real</p>
-              <p className="text-[11px] text-muted-foreground">
-                Monitoramento de ações, IP, data/hora e estado antes/depois
-              </p>
+            <div className="nexo-card nexo-stagger-2 flex items-center justify-between p-5">
+              <div>
+                <span className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                  <ShieldCheck className="h-4 w-4 text-secondary" /> Plataforma Nexo
+                </span>
+                <p className="mt-1 text-2xl font-bold tracking-tight text-foreground">Projeto Nexo</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Auditoria 360° e Governança Financeira
+                </p>
+              </div>
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-secondary/10 p-2 border border-secondary/20 shadow-xs">
+                <img
+                  src="/imagens/logo.png"
+                  alt="Logo Nexo"
+                  className="h-10 w-10 object-contain drop-shadow-xs"
+                />
+              </div>
             </div>
           </div>
         )}
