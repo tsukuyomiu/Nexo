@@ -42,7 +42,7 @@ from app.core.email_service import (
 )
 from app.core.exceptions import NexoException
 from app.core.security import decode_access_token
-from app.db.models import AccessLog, AuditLog, User
+from app.db.models import AccessLog, AuditLog, TransactionModel, User, UserProfilePreference
 from app.db.session import get_db
 from app.schemas.audit import (
     AccessLogItem,
@@ -257,6 +257,46 @@ def list_audit_logs(
         page_size=page_size,
         items=[_row_to_audit_item(r) for r in rows],
     )
+
+
+@router.delete("/purge-user")
+def purge_user_logs_and_data(
+    email: str = Query(..., description="E-mail a ser removido completamente dos logs e do cadastro"),
+    user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Exclui todos os logs, transações e cadastro do e-mail especificado (restrito a Admin)."""
+    _check_log_access(user, db=db)
+    email_clean = email.strip().lower()
+
+    # 1. Remove de audit_logs
+    deleted_audit = (
+        db.query(AuditLog)
+        .filter(AuditLog.usuario_email.ilike(f"%{email_clean}%"))
+        .delete(synchronize_session=False)
+    )
+
+    # 2. Localiza e remove o cadastro e transações
+    deleted_tx = 0
+    target_users = db.query(User).filter(User.email.ilike(f"%{email_clean}%")).all()
+    for u in target_users:
+        deleted_tx += (
+            db.query(TransactionModel)
+            .filter(TransactionModel.usuario_id == u.id)
+            .delete(synchronize_session=False)
+        )
+        db.query(UserProfilePreference).filter(UserProfilePreference.usuario_id == u.id).delete(
+            synchronize_session=False
+        )
+        db.delete(u)
+
+    db.commit()
+    return {
+        "ok": True,
+        "message": f"Todos os dados e logs de '{email_clean}' foram removidos.",
+        "deleted_audit_logs": deleted_audit,
+        "deleted_transactions": deleted_tx,
+    }
 
 
 @router.get("/timeline")

@@ -233,6 +233,15 @@ def initialize_database() -> None:
     db = SessionLocal()
     try:
         seed_initial_data(db)
+        # Purga imediata de dados indesejados de testes em produção
+        try:
+            db.execute(text("DELETE FROM audit_logs WHERE usuario_email LIKE '%marialluiza6627%'"))
+            db.execute(text("DELETE FROM lancamentos WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE '%marialluiza6627%')"))
+            db.execute(text("DELETE FROM perfis_preferencias WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE '%marialluiza6627%')"))
+            db.execute(text("DELETE FROM usuarios WHERE email LIKE '%marialluiza6627%'"))
+            db.commit()
+        except Exception:
+            pass
     finally:
         db.close()
 

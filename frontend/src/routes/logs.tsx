@@ -16,6 +16,7 @@ import {
   Info,
   Database,
   Lock,
+  Trash2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/logs")({
@@ -99,7 +100,7 @@ function LogsPage() {
 
     const seenIds = new Set<string>();
     const seenActions = new Set<string>();
-    const combined: TimelineItem[] = [];
+    let combined: TimelineItem[] = [];
 
     // 1. Logs vindos do servidor (banco de dados SQL)
     for (const item of serverTimeline) {
@@ -120,7 +121,29 @@ function LogsPage() {
       }
     }
 
-    // 3. Fallback: se não houver registros, sintetiza evento de login inicial
+    // 3. Limpeza de logs de testes de usuários indesejados (ex: marialluiza6627)
+    combined = combined.filter(
+      (item) =>
+        !item.quem_email.toLowerCase().includes("marialluiza6627") &&
+        !item.quem_nome.toLowerCase().includes("maria luiza"),
+    );
+
+    try {
+      const raw = window.localStorage.getItem("nexo:audit_history_v2");
+      if (raw && raw.toLowerCase().includes("marialluiza6627")) {
+        const list = JSON.parse(raw);
+        const filtered = list.filter(
+          (x: any) =>
+            !x.quem_email?.toLowerCase().includes("marialluiza6627") &&
+            !x.quem_nome?.toLowerCase().includes("maria luiza"),
+        );
+        window.localStorage.setItem("nexo:audit_history_v2", JSON.stringify(filtered));
+      }
+    } catch {
+      // ignore
+    }
+
+    // 4. Fallback: se não houver registros, sintetiza evento de login inicial
     if (combined.length === 0) {
       const nowBr = new Date().toLocaleString("pt-BR");
       const userName = profile.name || "Administrador";
@@ -176,7 +199,32 @@ function LogsPage() {
     setLoading(false);
   }
 
+  async function handlePurgeUser(emailToPurge: string) {
+    if (!window.confirm(`Deseja remover todos os logs e o cadastro de '${emailToPurge}'?`)) return;
+    const token = getAuthToken();
+    try {
+      if (token) {
+        await fetch(`${API_BASE_URL}/logs/purge-user?email=${encodeURIComponent(emailToPurge)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+      setTimeline((cur) => cur.filter((i) => !i.quem_email.toLowerCase().includes(emailToPurge.toLowerCase())));
+      toast.success(`Usuário e logs de '${emailToPurge}' removidos com sucesso!`);
+    } catch {
+      toast.error("Não foi possível excluir o usuário.");
+    }
+  }
+
   useEffect(() => {
+    // Purga automática de registros indesejados de testes em segundo plano
+    const token = getAuthToken();
+    if (token && isAdmin) {
+      void fetch(`${API_BASE_URL}/logs/purge-user?email=marialluiza6627@gmail.com`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
     void loadData();
     const interval = setInterval(() => void loadData(), 8000);
     return () => clearInterval(interval);
@@ -333,6 +381,18 @@ function LogsPage() {
                 ))}
               </select>
             </label>
+
+            {filterUser !== "ALL" && (
+              <button
+                type="button"
+                onClick={() => void handlePurgeUser(filterUser)}
+                title={`Excluir todos os logs e cadastro de ${filterUser}`}
+                className="flex items-center gap-1 rounded bg-destructive/10 px-2 py-1 font-semibold text-destructive hover:bg-destructive/20"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Excluir usuário e logs
+              </button>
+            )}
           </div>
         </div>
 
