@@ -1,17 +1,14 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  Facebook,
-  Instagram,
+  Accessibility,
+  Contrast,
   KeyRound,
-  Linkedin,
   Lock,
   Mail,
-  MessageCircle,
-  Music2,
   ShieldCheck,
-  Twitter,
   User,
-  Youtube,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -23,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAccessibility } from "@/hooks/useAccessibility";
 import { useTransactions } from "@/hooks/useTransactions";
 import { apiOAuthLogin } from "@/lib/api";
 import { evaluatePasswordStrength } from "@/lib/signup-validation";
@@ -44,16 +42,6 @@ const navItems = [
   { to: "/sobre", label: "Sobre nós" },
 ] as const;
 
-const socials = [
-  { icon: Instagram, label: "Instagram" },
-  { icon: Linkedin, label: "LinkedIn" },
-  { icon: Twitter, label: "X" },
-  { icon: MessageCircle, label: "WhatsApp" },
-  { icon: Youtube, label: "YouTube" },
-  { icon: Music2, label: "TikTok" },
-  { icon: Facebook, label: "Facebook" },
-];
-
 export function NexoLayout({
   children,
   useLogoImage = true,
@@ -63,6 +51,13 @@ export function NexoLayout({
   useLogoImage?: boolean;
   hideFooter?: boolean;
 }) {
+  const {
+    highContrast,
+    increaseFontSize,
+    decreaseFontSize,
+    resetFontSize,
+    toggleHighContrast,
+  } = useAccessibility();
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0D213A] text-white shadow-xs">
@@ -105,24 +100,62 @@ export function NexoLayout({
         </nav>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-10 sm:py-14">{children}</main>
+      <main id="main-content" className="flex flex-1 items-center justify-center px-4 py-10 sm:py-14">
+        {children}
+      </main>
 
       {!hideFooter && (
         <footer className="border-t border-border bg-card/80 px-4 py-6 text-xs backdrop-blur-xs sm:px-8">
           <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span className="font-bold text-foreground">Siga a Nexo</span>
-                {socials.map(({ icon: Icon, label }) => (
-                  <a
-                    key={label}
-                    href="#"
-                    aria-label={label}
-                    className="grid h-6 w-6 place-items-center rounded-full bg-[#0D213A] text-white transition-colors hover:bg-[#1D63DC]"
+              {/* Controles de Acessibilidade Simples */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="flex items-center gap-1.5 font-bold text-foreground">
+                  <Accessibility className="h-4 w-4 text-[#1D63DC]" /> Acessibilidade:
+                </span>
+                <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-0.5">
+                  <button
+                    type="button"
+                    onClick={decreaseFontSize}
+                    title="Diminuir tamanho do texto"
+                    aria-label="Diminuir tamanho do texto"
+                    className="rounded px-2 py-0.5 text-xs font-bold transition hover:bg-card"
                   >
-                    <Icon className="h-3 w-3" />
-                  </a>
-                ))}
+                    A-
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetFontSize}
+                    title="Tamanho padrão do texto"
+                    aria-label="Tamanho padrão do texto"
+                    className="rounded px-2 py-0.5 text-xs font-bold transition hover:bg-card"
+                  >
+                    A
+                  </button>
+                  <button
+                    type="button"
+                    onClick={increaseFontSize}
+                    title="Aumentar tamanho do texto"
+                    aria-label="Aumentar tamanho do texto"
+                    className="rounded px-2 py-0.5 text-xs font-bold transition hover:bg-card"
+                  >
+                    A+
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleHighContrast}
+                  title="Alternar modo de alto contraste"
+                  aria-label="Alternar modo de alto contraste"
+                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+                    highContrast
+                      ? "border-[#1D63DC] bg-[#1D63DC] text-white"
+                      : "border-border bg-muted/30 text-foreground hover:bg-card"
+                  }`}
+                >
+                  <Contrast className="h-3.5 w-3.5" />
+                  <span>Alto Contraste</span>
+                </button>
               </div>
               <p className="mt-2 max-w-md text-xs leading-relaxed text-muted-foreground">
                 Garantir a estabilidade do poder de compra da moeda, zelar por um sistema financeiro

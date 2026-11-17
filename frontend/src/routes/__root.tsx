@@ -8,10 +8,12 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
+import { AccessibilityWidget } from "@/components/AccessibilityWidget";
 import { Toaster } from "@/components/ui/sonner";
 import { TransactionsProvider } from "@/hooks/useTransactions";
+import { initAccessibility } from "@/lib/accessibility";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -118,7 +120,18 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        {/* Link de salto acessível para leitores de tela e navegação por teclado */}
+        <a href="#main-content" className="skip-link">
+          Ir para o conteúdo principal (Alt + 1)
+        </a>
         {children}
+        {/* Container oficial do assistente VLibras */}
+        <div vw="true" className="enabled">
+          <div vw-access-button="true" className="active" />
+          <div vw-plugin-wrapper="true">
+            <div className="vw-plugin-top-wrapper" />
+          </div>
+        </div>
         <Scripts />
       </body>
     </html>
@@ -128,6 +141,10 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    initAccessibility();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Provider único da camada de lançamentos (persistência temporária em localStorage) */}
@@ -135,6 +152,8 @@ function RootComponent() {
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
       </TransactionsProvider>
+      {/* Botão flutuante e menu global de acessibilidade */}
+      <AccessibilityWidget />
       <Toaster />
     </QueryClientProvider>
   );

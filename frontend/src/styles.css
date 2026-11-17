@@ -395,3 +395,68 @@ select:-webkit-autofill {
   box-shadow: 0 0 0 1000px #fff inset;
   transition: background-color 9999s ease-in-out 0s;
 }
+
+/* ===== Acessibilidade: Modo Alto Contraste (WCAG 2.1 AAA) ===== */
+html.high-contrast,
+html[data-high-contrast="true"] {
+  --background: oklch(0 0 0);
+  --foreground: oklch(1 0 0);
+  --card: oklch(0.08 0 0);
+  --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.08 0 0);
+  --popover-foreground: oklch(1 0 0);
+  --primary: oklch(0.95 0.22 105);
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.95 0.22 105);
+  --secondary-foreground: oklch(0 0 0);
+  --muted: oklch(0.18 0 0);
+  --muted-foreground: oklch(0.9 0 0);
+  --border: oklch(1 0 0 / 40%);
+  --input: oklch(1 0 0 / 40%);
+}
+
+html.high-contrast body,
+html[data-high-contrast="true"] body {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+html.high-contrast .nexo-card,
+html[data-high-contrast="true"] .nexo-card {
+  background-color: #0d0d0d !important;
+  border: 2px solid #ffff00 !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+html.high-contrast .nexo-card-navy,
+html[data-high-contrast="true"] .nexo-card-navy {
+  background-color: #000000 !important;
+  border: 2px solid #ffff00 !important;
+  color: #ffffff !important;
+}
+
+html.high-contrast a,
+html[data-high-contrast="true"] a {
+  text-decoration: underline !important;
+}
+
+/* Link de salto para navegação por teclado e leitores de tela */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 1rem;
+  z-index: 9999;
+  padding: 0.75rem 1.25rem;
+  background-color: #0D213A;
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  border: 2px solid #38BDF8;
+  transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+  top: 1rem;
+  outline: 3px solid #ffff00;
+}
