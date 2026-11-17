@@ -90,7 +90,10 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   async function syncFromBackend() {
     const token = getAuthToken();
     const storedUser = getStoredAuthUser();
-    const savedScope = loadLocalScope();
+    let savedScope = loadLocalScope();
+    if (!savedScope && storedUser?.email) {
+      savedScope = await startLocalScope(storedUser.email);
+    }
     if (savedScope) setScope(savedScope);
 
     if (storedUser) {
@@ -110,8 +113,10 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    const localTx = loadTransactions(savedScope);
+
     if (!isOnlineToken(token)) {
-      setTransactions(loadTransactions(savedScope));
+      setTransactions(localTx);
       if (!storedUser?.currency) setCurrencyState(loadCurrency());
       setLoaded(true);
       return;
@@ -134,7 +139,40 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       setRole(remoteProfile.role || "user");
       setCurrencyState(remoteProfile.currency || "BRL");
       setTwoFactorState(Boolean(remoteProfile.twoFactorEnabled));
-      setTransactions(remoteTx);
+
+      // FUSÃO INTELIGENTE: Nunca descarta lançamentos do usuário
+      const txMap = new Map<string, Transaction>();
+      for (const t of localTx) txMap.set(t.id, t);
+      for (const t of (remoteTx || [])) txMap.set(t.id, t);
+      const unifiedTx = Array.from(txMap.values());
+
+      setTransactions(unifiedTx);
+      if (savedScope) {
+        saveTransactions(unifiedTx, savedScope);
+      }
+
+      // Sincroniza lançamentos locais de volta para o pod atual caso ele não os tenha
+      if (remoteTx) {
+        for (const t of localTx) {
+          if (!remoteTx.some((r) => r.id === t.id)) {
+            void apiCreateTransaction({
+              id: t.id,
+              description: t.description,
+              amount: t.amount,
+              date: t.date,
+              category: t.category,
+              type: t.type,
+              status: t.status,
+              paymentMethod: t.paymentMethod,
+              contact: t.contact,
+              documentRef: t.documentRef,
+              recurring: t.recurring,
+              notes: t.notes,
+            }).catch(() => {});
+          }
+        }
+      }
+
       if (token) {
         setAuthSession(token, {
           id: remoteProfile.id,
@@ -146,7 +184,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         });
       }
     } catch {
-      setTransactions(loadTransactions(savedScope));
+      setTransactions(localTx);
       if (storedUser) {
         const local = loadLocalProfile(storedUser.email);
         if (local) setProfile((prev) => ({ ...prev, ...local }));
@@ -161,7 +199,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (loaded && scope && !isOnlineToken(getAuthToken())) {
+    if (loaded && scope) {
       saveTransactions(transactions, scope);
     }
   }, [transactions, loaded, scope]);
@@ -367,9 +405,11 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         } catch {
           // ignore
         }
+        if (scope) {
+          saveTransactions(transactions, scope);
+        }
         if (isOnlineToken(getAuthToken())) void apiLogout();
         else clearAuthSession();
-        if (scope && !isOnlineToken(getAuthToken())) saveTransactions(transactions, scope);
         endLocalScope();
         setScope(null);
         setTransactions([]);
@@ -379,6 +419,14 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         setLastAddedId(null);
       },
       add: (data) => {
+        const localItem = createTransaction(data);
+        setLastAddedId(localItem.id);
+        setTransactions((cur) => {
+          const next = [localItem, ...cur];
+          if (scope) saveTransactions(next, scope);
+          return next;
+        });
+
         recordAuditEvent({
           acao: "TRANSACTION_CREATED",
           modulo: "TRANSACTION",
@@ -387,21 +435,19 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           quem_email: profile.email,
           depois: { ...data },
         });
+
         if (isOnlineToken(getAuthToken())) {
-          void apiCreateTransaction(data)
+          void apiCreateTransaction({ ...data, id: localItem.id })
             .then((created) => {
-              setLastAddedId(created.id);
-              setTransactions((cur) => [created, ...cur]);
+              setTransactions((cur) => {
+                const updated = cur.map((t) => (t.id === localItem.id ? created : t));
+                if (scope) saveTransactions(updated, scope);
+                return updated;
+              });
             })
             .catch(() => {
-              const transaction = createTransaction(data);
-              setLastAddedId(transaction.id);
-              setTransactions((cur) => [transaction, ...cur]);
+              // Já está salvo localmente
             });
-        } else {
-          const transaction = createTransaction(data);
-          setLastAddedId(transaction.id);
-          setTransactions((cur) => [transaction, ...cur]);
         }
       },
       update: (id, data) => {
@@ -415,16 +461,13 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           antes: old ? { ...old } : null,
           depois: { id, ...data },
         });
+        setTransactions((cur) => {
+          const next = cur.map((t) => (t.id === id ? { ...data, id } : t));
+          if (scope) saveTransactions(next, scope);
+          return next;
+        });
         if (isOnlineToken(getAuthToken())) {
-          void apiUpdateTransaction(id, data)
-            .then((updated) => {
-              setTransactions((cur) => cur.map((t) => (t.id === id ? updated : t)));
-            })
-            .catch(() => {
-              setTransactions((cur) => cur.map((t) => (t.id === id ? { ...data, id } : t)));
-            });
-        } else {
-          setTransactions((cur) => cur.map((t) => (t.id === id ? { ...data, id } : t)));
+          void apiUpdateTransaction(id, data).catch(() => {});
         }
       },
       toggleStatus: (id) => {
@@ -440,20 +483,13 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           antes: { id, status: target.status },
           depois: { id, status: nextStatus },
         });
+        setTransactions((cur) => {
+          const next = cur.map((t) => (t.id === id ? { ...t, status: nextStatus } : t));
+          if (scope) saveTransactions(next, scope);
+          return next;
+        });
         if (isOnlineToken(getAuthToken())) {
-          void apiPatchTransactionStatus(id, nextStatus)
-            .then((updated) => {
-              setTransactions((cur) => cur.map((t) => (t.id === id ? updated : t)));
-            })
-            .catch(() => {
-              setTransactions((cur) =>
-                cur.map((t) => (t.id === id ? { ...t, status: nextStatus } : t)),
-              );
-            });
-        } else {
-          setTransactions((cur) =>
-            cur.map((t) => (t.id === id ? { ...t, status: nextStatus } : t)),
-          );
+          void apiPatchTransactionStatus(id, nextStatus).catch(() => {});
         }
       },
       remove: (id) => {
@@ -466,16 +502,13 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           quem_email: profile.email,
           antes: target ? { ...target } : null,
         });
+        setTransactions((cur) => {
+          const next = cur.filter((t) => t.id !== id);
+          if (scope) saveTransactions(next, scope);
+          return next;
+        });
         if (isOnlineToken(getAuthToken())) {
-          void apiDeleteTransaction(id)
-            .then(() => {
-              setTransactions((cur) => cur.filter((t) => t.id !== id));
-            })
-            .catch(() => {
-              setTransactions((cur) => cur.filter((t) => t.id !== id));
-            });
-        } else {
-          setTransactions((cur) => cur.filter((t) => t.id !== id));
+          void apiDeleteTransaction(id).catch(() => {});
         }
       },
     }),

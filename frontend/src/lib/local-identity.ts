@@ -6,7 +6,8 @@ const scopeSchema = z.string().regex(/^local-[a-f0-9]{64}$/);
 const KEY = "nexo:local-session";
 export function loadLocalScope(): string | null {
   try {
-    const result = scopeSchema.safeParse(sessionStorage.getItem(KEY));
+    const raw = sessionStorage.getItem(KEY) || localStorage.getItem(KEY);
+    const result = scopeSchema.safeParse(raw);
     return result.success ? result.data : null;
   } catch {
     return null;
@@ -16,12 +17,16 @@ export async function startLocalScope(email: string): Promise<string> {
   const normalized = z.string().trim().email().max(255).parse(email).toLowerCase();
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalized));
   const scope = `local-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-  sessionStorage.setItem(KEY, scope);
+  try {
+    sessionStorage.setItem(KEY, scope);
+    localStorage.setItem(KEY, scope);
+  } catch {}
   return scope;
 }
 export function endLocalScope(): void {
   try {
     sessionStorage.removeItem(KEY);
+    localStorage.removeItem(KEY);
   } catch {
     /* sem persistência disponível */
   }

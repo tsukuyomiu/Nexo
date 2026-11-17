@@ -128,8 +128,28 @@ def create_transaction(
 ) -> TransactionResponse:
     """Cria uma nova Receita (`income`) ou Despesa (`expense`) e registra em `audit_logs`."""
     ts = now_utc_iso()
+    tx_id = payload.id or generate_uuid()
+
+    existing = db.query(TransactionModel).filter(TransactionModel.id == tx_id).first()
+    if existing:
+        existing.descricao = payload.description
+        existing.valor = round(float(payload.amount), 2)
+        existing.data_lancamento = payload.date
+        existing.categoria = payload.category
+        existing.tipo = payload.type
+        existing.status = payload.status
+        existing.forma_pagamento = (payload.paymentMethod or "Pix").strip()
+        existing.contato = (payload.contact or "").strip()
+        existing.documento_ref = (payload.documentRef or "").strip()
+        existing.recorrente = 1 if payload.recurring else 0
+        existing.observacoes = (payload.notes or "").strip()
+        existing.atualizado_em = ts
+        db.commit()
+        db.refresh(existing)
+        return _to_response(existing)
+
     tx = TransactionModel(
-        id=generate_uuid(),
+        id=tx_id,
         usuario_id=user.id,
         descricao=payload.description,
         valor=round(float(payload.amount), 2),

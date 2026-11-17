@@ -15,6 +15,7 @@ TransactionStatus = Literal["confirmado", "pendente"]
 
 
 class TransactionCreate(BaseModel):
+    id: Optional[str] = Field(default=None, description="ID único para persistência e integridade")
     description: str = Field(..., min_length=1, max_length=100, description="Descrição do lançamento")
     amount: float = Field(..., gt=0, description="Valor positivo maior que zero")
     date: str = Field(..., min_length=10, max_length=10, description="Data ISO YYYY-MM-DD")

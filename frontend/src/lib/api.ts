@@ -262,7 +262,7 @@ export async function apiListTransactions(): Promise<TransactionApi[]> {
 }
 
 export async function apiCreateTransaction(
-  payload: Omit<TransactionApi, "id">,
+  payload: Omit<TransactionApi, "id"> & { id?: string },
 ): Promise<TransactionApi> {
   return requestJson<TransactionApi>("/transactions", {
     method: "POST",
