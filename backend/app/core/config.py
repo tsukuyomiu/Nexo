@@ -10,16 +10,28 @@ from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+import os
+
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 PROJECT_ROOT_DIR = BACKEND_DIR.parent
-DATA_DIR = BACKEND_DIR / "data"
-LOGS_DIR = BACKEND_DIR / "logs"
+
+# Em ambientes serverless (Vercel / Lambda), apenas o diretório /tmp é gravável
+if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    DATA_DIR = Path("/tmp/nexo_data")
+    LOGS_DIR = Path("/tmp/nexo_logs")
+else:
+    DATA_DIR = BACKEND_DIR / "data"
+    LOGS_DIR = BACKEND_DIR / "logs"
+
 SQL_DIR = PROJECT_ROOT_DIR / "database" / "sql"
 SEEDS_DIR = PROJECT_ROOT_DIR / "database" / "json_seeds"
 
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
-(DATA_DIR / "backups").mkdir(parents=True, exist_ok=True)
+try:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    (DATA_DIR / "backups").mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
 
 
 class Settings(BaseSettings):
