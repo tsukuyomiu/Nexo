@@ -4,8 +4,8 @@
   "private": true,
   "description": "Projeto Nexo - Plataforma de Gestão Financeira e Auditoria",
   "scripts": {
-    "build": "cd frontend && npm install && npm run build",
-    "dev": "cd frontend && npm run dev",
-    "test": "cd frontend && npm test"
+    "build": "node -e \"const fs = require('fs'); const cp = require('child_process'); if (fs.existsSync('frontend')) { process.chdir('frontend'); } cp.execSync('npm run build', { stdio: 'inherit' });\"",
+    "dev": "npm run dev --prefix frontend",
+    "test": "npm run test --prefix frontend"
   }
 }
