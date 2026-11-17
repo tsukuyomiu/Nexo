@@ -1,0 +1,11 @@
+{
+  "name": "project-nexo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Projeto Nexo - Plataforma de Gestão Financeira e Auditoria",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "dev": "cd frontend && npm run dev",
+    "test": "cd frontend && npm test"
+  }
+}
