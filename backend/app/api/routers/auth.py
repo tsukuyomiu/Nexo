@@ -37,6 +37,7 @@ from app.core.exceptions import NexoException
 from app.core.security import (
     create_access_token,
     decode_access_token,
+    deterministic_user_id,
     generate_reset_code,
     generate_uuid,
     hash_password,
@@ -128,7 +129,7 @@ def signup(
     assigned_role = _resolve_requested_role(email_norm, payload.account_type, payload.admin_code)
 
     ts = now_utc_iso()
-    user_id = generate_uuid()
+    user_id = deterministic_user_id(email_norm)
     new_user = User(
         id=user_id,
         nome=payload.name.strip(),
@@ -156,7 +157,12 @@ def signup(
     )
     db.add(profile)
 
-    token_data = create_access_token(subject=user_id, email=email_norm, role=assigned_role)
+    token_data = create_access_token(
+        subject=user_id,
+        email=email_norm,
+        role=assigned_role,
+        name=new_user.nome,
+    )
     session_row = SessionToken(
         id=generate_uuid(),
         usuario_id=user_id,
@@ -479,7 +485,7 @@ def oauth_login(
     if not user:
         assigned_role = _resolve_requested_role(email_norm, payload.account_type, payload.admin_code)
         user = User(
-            id=generate_uuid(),
+            id=deterministic_user_id(email_norm),
             nome=payload.name.strip(),
             email=email_norm,
             senha_hash=hash_password(chosen_password if chosen_password else generate_uuid()),
@@ -537,7 +543,12 @@ def _issue_login_session(
     if user.email in settings.admin_emails_set and user.role != "admin":
         user.role = "admin"
 
-    token_data = create_access_token(subject=user.id, email=user.email, role=user.role)
+    token_data = create_access_token(
+        subject=user.id,
+        email=user.email,
+        role=user.role,
+        name=user.nome,
+    )
     session_row = SessionToken(
         id=generate_uuid(),
         usuario_id=user.id,

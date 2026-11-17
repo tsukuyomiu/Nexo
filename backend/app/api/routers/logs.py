@@ -566,23 +566,76 @@ def log_frontend_event(
         case _:
             sev = "INFO"
 
+    action_upper = payload.acao.upper()
+    actor_email = (
+        (user.email if user else None)
+        or (payload.usuario_email or "").strip().lower()
+        or audit.actor_email
+    )
+    actor_name = (
+        (user.nome if user else None)
+        or (payload.usuario_nome or "").strip()
+        or audit.actor_name
+    )
+
+    if payload.categoria:
+        cat = payload.categoria.upper()
+    elif "PROFILE" in action_upper:
+        cat = "PROFILE"
+    elif "TRANSACTION" in action_upper:
+        cat = "TRANSACTION"
+    elif "PREFERENCE" in action_upper or "CURRENCY" in action_upper:
+        cat = "PREFERENCES"
+    elif "PASSWORD" in action_upper or "2FA" in action_upper:
+        cat = "SECURITY"
+    elif "LOGIN" in action_upper or "LOGOUT" in action_upper or "SIGNUP" in action_upper:
+        cat = "AUTH"
+    else:
+        cat = "FRONTEND"
+
+    # Evita duplicidade caso a rota de backend principal (ex: PUT /profile ou POST /transactions)
+    # já tenha gravado este mesmo evento nos últimos segundos
+    recent = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.usuario_email == actor_email,
+            AuditLog.acao == action_upper,
+        )
+        .order_by(AuditLog.data_hora_utc.desc())
+        .first()
+    )
+    if recent and recent.data_hora_utc:
+        try:
+            recent_dt = datetime.fromisoformat(recent.data_hora_utc.replace("Z", "+00:00"))
+            now_dt = datetime.now(recent_dt.tzinfo)
+            if abs((now_dt - recent_dt).total_seconds()) <= 5.0:
+                return {
+                    "ok": True,
+                    "log_id": recent.id,
+                    "recorded_at": recent.data_hora_local,
+                    "deduplicated": True,
+                }
+        except Exception:
+            pass
+
     record = record_audit_event(
         db,
-        action=payload.acao.upper(),
-        category="FRONTEND",
+        action=action_upper,
+        category=cat,
         severity=sev,
         entity_affected=payload.entidade_afetada,
         entity_id=payload.entidade_id,
         actor_id=user.id if user else audit.actor_id,
-        actor_email=user.email if user else audit.actor_email,
-        actor_name=user.nome if user else audit.actor_name,
+        actor_email=actor_email,
+        actor_name=actor_name,
         ip_address=audit.ip_address,
         user_agent=audit.user_agent,
         http_method=audit.http_method,
         http_route=audit.http_route,
         request_id=audit.request_id,
         summary=payload.resumo_humano,
-        after_data=payload.detalhes,
+        before_data=payload.antes,
+        after_data=payload.depois or payload.detalhes,
         origin="FRONTEND_TELEMETRY",
     )
     return {"ok": True, "log_id": record["id"], "recorded_at": record["data_hora_local"]}

@@ -38,6 +38,16 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 
+def deterministic_user_id(email: str) -> str:
+    """Gera um ID de usuário determinístico a partir do e-mail para manter consistência na nuvem."""
+    clean = email.strip().lower()
+    if clean == "admin@nexo.com":
+        return "00000000-0000-4000-8000-000000000001"
+    if clean == "demo@nexo.com":
+        return "00000000-0000-4000-8000-000000000002"
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"nexo.user:{clean}"))
+
+
 def hash_password(password: str) -> str:
     """Gera o hash SHA-256 da senha para proteger a credencial no banco de dados."""
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
@@ -84,8 +94,9 @@ def create_access_token(
     role: str = "user",
     jti: Optional[str] = None,
     expires_delta: Optional[timedelta] = None,
+    name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Cria um token JWT assinado contendo `sub` (user_id), `email`, `role` e `jti`."""
+    """Cria um token JWT assinado contendo `sub` (user_id), `email`, `name`, `role` e `jti`."""
     token_jti = jti or generate_uuid()
     expire = now_utc() + (
         expires_delta or timedelta(minutes=settings.NEXO_ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -93,6 +104,7 @@ def create_access_token(
     payload = {
         "sub": subject,
         "email": email,
+        "name": name or email.split("@")[0],
         "role": role,
         "jti": token_jti,
         "iat": int(now_utc().timestamp()),

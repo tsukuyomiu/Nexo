@@ -91,11 +91,18 @@ export function recordAuditEvent(
   const current = getLocalAuditEntries();
   saveLocalAuditEntries([newLog, ...current]);
 
-  // 2. Dispara assincronamente para a API FastAPI gravar no banco SQL caso online
+  // 2. Dispara assincronamente para a API FastAPI gravar no banco SQL compartilhado
   void apiLogFrontendEvent(
     newLog.acao,
     newLog.o_que_fez,
-    newLog.depois || undefined
+    newLog.depois || undefined,
+    {
+      categoria: newLog.modulo,
+      usuario_nome: newLog.quem_nome,
+      usuario_email: newLog.quem_email,
+      antes: newLog.antes,
+      depois: newLog.depois,
+    }
   ).catch(() => {
     // Silencia se offline — o log já está seguro no navegador
   });

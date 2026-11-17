@@ -71,11 +71,16 @@ class AccessLogListResponse(BaseModel):
 
 
 class FrontendEventPayload(BaseModel):
-    """Permite que o Front-End envie eventos de navegação, clique ou erro para o log central."""
+    """Permite que o Front-End envie eventos de navegação, perfil, transações ou erro para o log central."""
 
-    acao: str = Field(..., min_length=2, max_length=80, description="Ex: PAGE_VIEW, MODAL_OPENED, FILTER_APPLIED")
+    acao: str = Field(..., min_length=2, max_length=80, description="Ex: PROFILE_UPDATED, TRANSACTION_CREATED")
+    categoria: Optional[str] = Field(default=None, max_length=40, description="Ex: PROFILE, TRANSACTION, PREFERENCES, SECURITY")
     entidade_afetada: str = Field(default="frontend_ui", max_length=60)
     entidade_id: Optional[str] = None
+    usuario_nome: Optional[str] = Field(default=None, max_length=120)
+    usuario_email: Optional[str] = Field(default=None, max_length=255)
     resumo_humano: str = Field(..., min_length=3, max_length=500)
     severidade: str = Field(default="INFO")
+    antes: Optional[Dict[str, Any]] = None
+    depois: Optional[Dict[str, Any]] = None
     detalhes: Optional[Dict[str, Any]] = None

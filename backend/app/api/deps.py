@@ -13,9 +13,15 @@ from fastapi import Depends, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.exceptions import NexoException
-from app.core.security import decode_access_token
-from app.db.models import SessionToken, User
+from app.core.security import (
+    decode_access_token,
+    deterministic_user_id,
+    hash_password,
+    now_utc_iso,
+)
+from app.db.models import SessionToken, User, UserProfilePreference
 from app.db.session import get_db
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -48,6 +54,69 @@ class AuditContext:
     actor_name: str = "Visitante / Não Autenticado"
 
 
+def _ensure_serverless_user(
+    db: Session,
+    email: str,
+    name: str,
+    user_id: Optional[str] = None,
+    role_hint: str = "user",
+) -> User:
+    """
+    Garante que o usuário autenticado exista no banco SQLite atual (mesmo após
+    reinicialização de container serverless na nuvem).
+    """
+    email_clean = email.strip().lower()
+    existing = db.query(User).filter(User.email == email_clean).first()
+    if existing:
+        if email_clean in settings.admin_emails_set and existing.role != "admin":
+            existing.role = "admin"
+            db.commit()
+            db.refresh(existing)
+        return existing
+
+    effective_role = (
+        "admin"
+        if (email_clean in settings.admin_emails_set or role_hint == "admin")
+        else "user"
+    )
+    ts = now_utc_iso()
+    uid = user_id or deterministic_user_id(email_clean)
+    # Evita colisão de primary key caso outro registro use o mesmo ID
+    if db.query(User).filter(User.id == uid).first():
+        uid = deterministic_user_id(email_clean)
+
+    display_name = (name or email_clean.split("@")[0] or "Usuário Nexo").strip()
+    user = User(
+        id=uid,
+        nome=display_name,
+        email=email_clean,
+        senha_hash=hash_password(uid),
+        role=effective_role,
+        ativo=1,
+        termos_aceitos=1,
+        termos_aceitos_em=ts,
+        ultimo_login_em=ts,
+        criado_em=ts,
+        atualizado_em=ts,
+    )
+    db.add(user)
+    db.flush()
+
+    prof = UserProfilePreference(
+        usuario_id=user.id,
+        telefone="",
+        data_nascimento="",
+        endereco="",
+        moeda_preferida="BRL",
+        dois_fatores_ativo=0,
+        atualizado_em=ts,
+    )
+    db.add(prof)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def get_current_user_optional(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
@@ -55,18 +124,42 @@ def get_current_user_optional(
 ) -> Optional[User]:
     """
     Tenta resolver o usuário logado a partir do header `Authorization: Bearer <token>`.
-    Se não houver token válido, retorna `None` sem lançar erro.
+    Se o container serverless tiver reiniciado, recria automaticamente o registro do
+    usuário no SQLite a partir do token JWT válido ou dos cabeçalhos de sessão.
     """
+    header_email = (request.headers.get("x-nexo-user-email") or "").strip().lower()
+    header_name = (request.headers.get("x-nexo-user-name") or "").strip()
+
     if not credentials or not credentials.credentials:
         return None
 
-    payload = decode_access_token(credentials.credentials)
+    raw_token = credentials.credentials.strip()
+
+    # Suporte para sessões iniciadas em modo offline que reconectaram ao backend
+    if raw_token.startswith("offline-") and header_email:
+        role_for_email = "admin" if header_email in settings.admin_emails_set else "user"
+        user = _ensure_serverless_user(
+            db,
+            email=header_email,
+            name=header_name or header_email.split("@")[0],
+            role_hint=role_for_email,
+        )
+        request.state.user_id = user.id
+        request.state.user_email = user.email
+        request.state.user_name = user.nome
+        return user
+
+    payload = decode_access_token(raw_token)
     if not payload:
         return None
 
     user_id = payload.get("sub")
     jti = payload.get("jti")
-    if not user_id:
+    jwt_email = (payload.get("email") or header_email or "").strip().lower()
+    jwt_name = (payload.get("name") or header_name or "").strip()
+    jwt_role = payload.get("role", "user")
+
+    if not user_id and not jwt_email:
         return None
 
     # Verifica se a sessão foi revogada no banco
@@ -79,8 +172,22 @@ def get_current_user_optional(
         if session_record:
             return None
 
-    user = db.query(User).filter(User.id == user_id, User.ativo == 1).first()
+    user = None
+    if user_id:
+        user = db.query(User).filter(User.id == user_id, User.ativo == 1).first()
+    if not user and jwt_email:
+        user = _ensure_serverless_user(
+            db,
+            email=jwt_email,
+            name=jwt_name,
+            user_id=user_id,
+            role_hint=jwt_role,
+        )
+
     if user:
+        if header_name and user.nome != header_name and user.nome == user.email.split("@")[0]:
+            user.nome = header_name
+            db.commit()
         request.state.user_id = user.id
         request.state.user_email = user.email
         request.state.user_name = user.nome

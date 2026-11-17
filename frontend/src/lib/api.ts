@@ -67,12 +67,17 @@ export function clearAuthSession(): void {
 
 async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getAuthToken();
+  const storedUser = getStoredAuthUser();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (storedUser?.email) {
+    headers["X-Nexo-User-Email"] = storedUser.email;
+    headers["X-Nexo-User-Name"] = storedUser.name || storedUser.email.split("@")[0];
   }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -332,15 +337,28 @@ export async function apiLogFrontendEvent(
   acao: string,
   resumo_humano: string,
   detalhes?: Record<string, unknown>,
+  extra?: {
+    usuario_nome?: string;
+    usuario_email?: string;
+    categoria?: string;
+    antes?: Record<string, unknown> | null;
+    depois?: Record<string, unknown> | null;
+  },
 ): Promise<void> {
   try {
+    const stored = getStoredAuthUser();
     await requestJson("/logs/frontend-event", {
       method: "POST",
       body: JSON.stringify({
         acao,
         resumo_humano,
         severidade: "INFO",
-        detalhes,
+        categoria: extra?.categoria,
+        usuario_nome: extra?.usuario_nome || stored?.name,
+        usuario_email: extra?.usuario_email || stored?.email,
+        antes: extra?.antes,
+        depois: extra?.depois,
+        detalhes: detalhes || extra?.depois,
       }),
     });
   } catch {
