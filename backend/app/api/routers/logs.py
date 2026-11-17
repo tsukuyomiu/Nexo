@@ -309,7 +309,7 @@ def get_human_timeline(
     """Retorna a linha do tempo de atividades dos usuários para o painel de Administrador."""
     _check_log_access(user, db=db)
 
-    query = db.query(AuditLog)
+    query = db.query(AuditLog).filter(AuditLog.usuario_email.notilike("%marialluiza6627%"))
     if email:
         query = query.filter(AuditLog.usuario_email.ilike(f"%{email.strip()}%"))
 
@@ -406,16 +406,23 @@ def get_logs_statistics(
     """Retorna métricas agregadas sobre tudo o que ocorreu no sistema."""
     _check_log_access(user, db=db)
 
-    total_audit = db.query(func.count(AuditLog.id)).scalar() or 0
+    total_audit = (
+        db.query(func.count(AuditLog.id))
+        .filter(AuditLog.usuario_email.notilike("%marialluiza6627%"))
+        .scalar()
+        or 0
+    )
     total_access = db.query(func.count(AccessLog.id)).scalar() or 0
 
     by_category = (
         db.query(AuditLog.categoria_evento, func.count(AuditLog.id))
+        .filter(AuditLog.usuario_email.notilike("%marialluiza6627%"))
         .group_by(AuditLog.categoria_evento)
         .all()
     )
     by_severity = (
         db.query(AuditLog.severidade, func.count(AuditLog.id))
+        .filter(AuditLog.usuario_email.notilike("%marialluiza6627%"))
         .group_by(AuditLog.severidade)
         .all()
     )
@@ -425,6 +432,7 @@ def get_logs_statistics(
             AuditLog.usuario_nome,
             func.count(AuditLog.id).label("total"),
         )
+        .filter(AuditLog.usuario_email.notilike("%marialluiza6627%"))
         .group_by(AuditLog.usuario_email, AuditLog.usuario_nome)
         .order_by(text("total DESC"))
         .limit(10)

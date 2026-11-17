@@ -303,6 +303,18 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       resetProfile: () => setProfile({ ...emptyProfile }),
       authenticateSession: async (token, user) => {
         setAuthSession(token, user);
+        try {
+          recordAuditEvent({
+            acao: "USER_LOGIN_SUCCESS",
+            modulo: "AUTH",
+            o_que_fez: `Login realizado com sucesso por '${user.name}' (${user.email}) [Perfil: ${user.role?.toUpperCase() || "USER"}].`,
+            quem_nome: user.name,
+            quem_email: user.email,
+            depois: { id: user.id, name: user.name, email: user.email, role: user.role },
+          });
+        } catch {
+          // ignore
+        }
         const nextScope = await startLocalScope(user.email);
         setScope(nextScope);
         setRole(user.role || "user");
@@ -325,11 +337,36 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         setScope(nextScope);
         setTransactions(loadTransactions(nextScope));
         const local = loadLocalProfile(email);
-        setProfile(local || { ...emptyProfile, email });
+        const initial = local || { ...emptyProfile, email };
+        setProfile(initial);
+        try {
+          recordAuditEvent({
+            acao: "USER_LOGIN_SUCCESS",
+            modulo: "AUTH",
+            o_que_fez: `Sessão local iniciada por '${initial.name}' (${initial.email}).`,
+            quem_nome: initial.name,
+            quem_email: initial.email,
+          });
+        } catch {
+          // ignore
+        }
         setLastAddedId(null);
         setLoaded(true);
       },
       endLocalSession: () => {
+        try {
+          if (profile.email) {
+            recordAuditEvent({
+              acao: "USER_LOGOUT",
+              modulo: "AUTH",
+              o_que_fez: `Usuário '${profile.name || "Usuário"}' (${profile.email}) encerrou a sessão (Logout).`,
+              quem_nome: profile.name,
+              quem_email: profile.email,
+            });
+          }
+        } catch {
+          // ignore
+        }
         if (isOnlineToken(getAuthToken())) void apiLogout();
         else clearAuthSession();
         if (scope && !isOnlineToken(getAuthToken())) saveTransactions(transactions, scope);
