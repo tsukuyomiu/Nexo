@@ -330,6 +330,9 @@ export function PasswordStrengthMeter({ password }: { password: string }) {
   );
 }
 
+const DEFAULT_GOOGLE_CLIENT_ID =
+  "93084699315-kvps95lk3kd29eik4hcdphcgcrjo30a0.apps.googleusercontent.com";
+
 export function SocialButtons({ appleIcon: _appleIcon = false }: { appleIcon?: boolean }) {
   const navigate = useNavigate();
   const { authenticateSession, setAvatarUrl } = useTransactions();
@@ -344,8 +347,8 @@ export function SocialButtons({ appleIcon: _appleIcon = false }: { appleIcon?: b
       import.meta.env &&
       (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)) ||
     (typeof window !== "undefined"
-      ? window.localStorage.getItem("nexo:google-client-id") || ""
-      : "");
+      ? window.localStorage.getItem("nexo:google-client-id") || DEFAULT_GOOGLE_CLIENT_ID
+      : DEFAULT_GOOGLE_CLIENT_ID);
 
   // Carrega o script oficial do Google Identity Services (OAuth 2.0)
   useEffect(() => {
@@ -425,7 +428,7 @@ export function SocialButtons({ appleIcon: _appleIcon = false }: { appleIcon?: b
                 if (info.picture) {
                   try {
                     window.localStorage.setItem(
-                      `nexo_avatar_${info.email.trim().toLowerCase()}`,
+                      `nexo:avatar:v2:${info.email.trim().toLowerCase()}`,
                       info.picture,
                     );
                     setAvatarUrl(info.picture);
