@@ -34,6 +34,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useTransactions } from "@/hooks/useTransactions";
 import { changePassword } from "@/lib/change-password";
+import { recordAuditEvent } from "@/lib/audit-store";
 import { ProfileDialog } from "@/components/ProfileDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -472,6 +473,13 @@ function PasswordDialog({
         setForm({ current: "", next: "", confirm: "" });
       } else {
         toast.success(result.message || "Senha alterada com sucesso!");
+        recordAuditEvent({
+          acao: "PASSWORD_CHANGED",
+          modulo: "SECURITY",
+          o_que_fez: "Alteração de senha realizada com sucesso.",
+          quem_nome: profile.name,
+          quem_email: profile.email,
+        });
         reset();
         onOpenChange(false);
       }

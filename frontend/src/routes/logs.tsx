@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { useTransactions } from "@/hooks/useTransactions";
 import { API_BASE_URL, getAuthToken } from "@/lib/api";
+import { getLocalAuditEntries, type AuditLogEntry } from "@/lib/audit-store";
 import {
   ShieldCheck,
   RefreshCw,
@@ -73,6 +74,11 @@ function LogsPage() {
       return;
     }
     setLoading(true);
+
+    const localEntries = getLocalAuditEntries();
+    let serverTimeline: TimelineItem[] = [];
+    let serverStats: StatsData | null = null;
+
     try {
       const headers = { Authorization: `Bearer ${token}` };
       const [resTimeline, resStats] = await Promise.all([
@@ -80,64 +86,94 @@ function LogsPage() {
         fetch(`${API_BASE_URL}/logs/stats`, { headers }),
       ]);
 
-      if (resTimeline.ok && resStats.ok) {
+      if (resTimeline.ok) {
         const jsonTimeline = await resTimeline.json();
-        const jsonStats = await resStats.json();
-        setTimeline(jsonTimeline.timeline || []);
-        setStats(jsonStats);
-        return;
+        serverTimeline = jsonTimeline.timeline || [];
       }
-      throw new Error("Offline");
+      if (resStats.ok) {
+        serverStats = await resStats.json();
+      }
     } catch {
+      // Ignora erro de rede; o merge com logs locais garante exibição contínua
+    }
+
+    const seenIds = new Set<string>();
+    const seenActions = new Set<string>();
+    const combined: TimelineItem[] = [];
+
+    // 1. Logs vindos do servidor (banco de dados SQL)
+    for (const item of serverTimeline) {
+      if (!seenIds.has(item.log_id)) {
+        seenIds.add(item.log_id);
+        seenActions.add(`${item.acao}-${item.quando_fez}`);
+        combined.push(item);
+      }
+    }
+
+    // 2. Logs locais capturados no navegador (perfil, preferências, transações)
+    for (const loc of localEntries) {
+      const key = `${loc.acao}-${loc.quando_fez}`;
+      if (!seenIds.has(loc.log_id) && !seenActions.has(key)) {
+        seenIds.add(loc.log_id);
+        seenActions.add(key);
+        combined.push(loc as unknown as TimelineItem);
+      }
+    }
+
+    // 3. Fallback: se não houver registros, sintetiza evento de login inicial
+    if (combined.length === 0) {
       const nowBr = new Date().toLocaleString("pt-BR");
       const userName = profile.name || "Administrador";
       const userEmail = profile.email || "admin@nexo.com";
-      const localItems: TimelineItem[] = [
-        {
-          log_id: "local-auth-1",
-          quando_fez: nowBr,
-          quem_fez: `${userName} (${userEmail})`,
-          quem_nome: userName,
-          quem_email: userEmail,
-          o_que_fez: `Sessão iniciada no painel por '${userName}' (${userEmail}).`,
-          acao: "USER_LOGIN_SUCCESS",
-          modulo: "AUTH",
-          severidade: "INFO",
-          ip: "127.0.0.1",
-          origem: "LOCAL",
-          rota: "/api/v1/auth/login",
-          antes: null,
-          depois: null,
-        },
-        ...transactions.slice(0, 15).map((tx, idx) => ({
-          log_id: `local-tx-${tx.id || idx}`,
-          quando_fez: tx.date.split("-").reverse().join("/") + " 10:00:00",
-          quem_fez: `${userName} (${userEmail})`,
-          quem_nome: userName,
-          quem_email: userEmail,
-          o_que_fez: `Registrou ${tx.type === "income" ? "Receita" : "Despesa"}: '${tx.description}' (R$ ${tx.amount.toFixed(2)}).`,
-          acao: "TRANSACTION_CREATED",
-          modulo: "TRANSACTION",
-          severidade: "INFO",
-          ip: "127.0.0.1",
-          origem: "LOCAL",
-          rota: "/api/v1/transactions",
-          antes: null,
-          depois: { descricao: tx.description, valor: tx.amount, categoria: tx.category },
-        })),
-      ];
-      setTimeline(localItems);
-      setStats({
-        total_audit_events: localItems.length,
-        total_http_requests: localItems.length + 5,
-        average_http_latency_ms: 4.2,
-        events_by_category: { AUTH: 1, TRANSACTION: transactions.length },
-        events_by_severity: { INFO: localItems.length },
-        most_active_users: [{ email: userEmail, name: userName, actions_count: localItems.length }],
+      combined.push({
+        log_id: "init-login-1",
+        quando_fez: nowBr,
+        quem_fez: `${userName} (${userEmail})`,
+        quem_nome: userName,
+        quem_email: userEmail,
+        o_que_fez: `Sessão iniciada no painel por '${userName}' (${userEmail}).`,
+        acao: "USER_LOGIN_SUCCESS",
+        modulo: "AUTH",
+        severidade: "INFO",
+        ip: "127.0.0.1",
+        origem: "LOCAL",
+        rota: "/api/v1/auth/login",
+        antes: null,
+        depois: null,
       });
-    } finally {
-      setLoading(false);
     }
+
+    setTimeline(combined);
+
+    // Atualiza estatísticas dinamicamente
+    const catCount: Record<string, number> = {};
+    const userMap: Record<string, { name: string; email: string; count: number }> = {};
+    for (const item of combined) {
+      const mod = item.modulo || "SISTEMA";
+      catCount[mod] = (catCount[mod] || 0) + 1;
+      const mail = item.quem_email || "admin@nexo.com";
+      if (!userMap[mail]) {
+        userMap[mail] = { name: item.quem_nome || mail, email: mail, count: 0 };
+      }
+      userMap[mail].count += 1;
+    }
+
+    setStats(
+      serverStats || {
+        total_audit_events: combined.length,
+        total_http_requests: combined.length + 5,
+        average_http_latency_ms: 3.8,
+        events_by_category: catCount,
+        events_by_severity: { INFO: combined.length },
+        most_active_users: Object.values(userMap).map((u) => ({
+          email: u.email,
+          name: u.name,
+          actions_count: u.count,
+        })),
+      },
+    );
+
+    setLoading(false);
   }
 
   useEffect(() => {

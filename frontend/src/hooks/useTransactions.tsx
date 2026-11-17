@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { emptyProfile, loadLocalProfile, prepareProfile, saveLocalProfile, type Profile } from "@/lib/profile";
 import { loadCurrency, saveCurrency, type Currency } from "@/lib/preferences";
 import { endLocalScope, loadLocalScope, startLocalScope } from "@/lib/local-identity";
+import { recordAuditEvent } from "@/lib/audit-store";
 import {
   createTransaction,
   loadTransactions,
@@ -198,7 +199,17 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       currency,
       setCurrency: (next) => {
         const saved = saveCurrency(next);
-        if (saved) setCurrencyState(next);
+        if (saved) {
+          setCurrencyState(next);
+          recordAuditEvent({
+            acao: "PREFERENCES_UPDATED",
+            modulo: "PREFERENCES",
+            o_que_fez: `Alterou a moeda padrão do sistema para ${next}.`,
+            quem_nome: profile.name,
+            quem_email: profile.email,
+            depois: { currency: next },
+          });
+        }
         if (isOnlineToken(getAuthToken())) {
           void apiUpdateMyPreferences({ currency: next, twoFactorEnabled }).catch(() => {});
         }
@@ -206,6 +217,14 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       },
       setTwoFactorEnabled: async (enabled) => {
         if (!getAuthToken()) return false;
+        recordAuditEvent({
+          acao: "2FA_TOGGLED",
+          modulo: "SECURITY",
+          o_que_fez: `${enabled ? "Ativou" : "Desativou"} a autenticação em duas etapas (2FA).`,
+          quem_nome: profile.name,
+          quem_email: profile.email,
+          depois: { twoFactorEnabled: enabled },
+        });
         if (!isOnlineToken(getAuthToken())) {
           setTwoFactorState(enabled);
           return true;
@@ -224,6 +243,13 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       },
       updateProfile: async (next) => {
         const prepared = prepareProfile(next);
+        const before = {
+          name: profile.name,
+          email: profile.email,
+          phone: profile.phone,
+          birthDate: profile.birthDate,
+          address: profile.address,
+        };
 
         // 1. Sempre salva localmente no navegador (garante que persista mesmo offline ou no Vercel)
         saveLocalProfile(prepared);
@@ -236,7 +262,24 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           });
         }
 
-        // 2. Se houver conexão com o backend FastAPI, persiste no banco de dados SQL
+        // 2. Grava evento de auditoria completo com antes e depois
+        recordAuditEvent({
+          acao: "PROFILE_UPDATED",
+          modulo: "PROFILE",
+          o_que_fez: `Usuário '${prepared.name}' atualizou suas informações pessoais de perfil.`,
+          quem_nome: prepared.name,
+          quem_email: prepared.email,
+          antes: before,
+          depois: {
+            name: prepared.name,
+            email: prepared.email,
+            phone: prepared.phone,
+            birthDate: prepared.birthDate,
+            address: prepared.address,
+          },
+        });
+
+        // 3. Se houver conexão com o backend FastAPI, persiste no banco de dados SQL
         if (isOnlineToken(getAuthToken())) {
           try {
             const updated = await apiUpdateMyProfile(prepared);
@@ -299,6 +342,14 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         setLastAddedId(null);
       },
       add: (data) => {
+        recordAuditEvent({
+          acao: "TRANSACTION_CREATED",
+          modulo: "TRANSACTION",
+          o_que_fez: `Registrou ${data.type === "income" ? "Receita" : "Despesa"}: '${data.description}' (R$ ${Number(data.amount).toFixed(2)}).`,
+          quem_nome: profile.name,
+          quem_email: profile.email,
+          depois: { ...data },
+        });
         if (isOnlineToken(getAuthToken())) {
           void apiCreateTransaction(data)
             .then((created) => {
@@ -317,6 +368,16 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         }
       },
       update: (id, data) => {
+        const old = transactions.find((t) => t.id === id);
+        recordAuditEvent({
+          acao: "TRANSACTION_UPDATED",
+          modulo: "TRANSACTION",
+          o_que_fez: `Editou lançamento '${data.description}' (${data.type === "income" ? "Receita" : "Despesa"}).`,
+          quem_nome: profile.name,
+          quem_email: profile.email,
+          antes: old ? { ...old } : null,
+          depois: { id, ...data },
+        });
         if (isOnlineToken(getAuthToken())) {
           void apiUpdateTransaction(id, data)
             .then((updated) => {
@@ -333,6 +394,15 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         const target = transactions.find((t) => t.id === id);
         if (!target) return;
         const nextStatus = target.status === "confirmado" ? "pendente" : "confirmado";
+        recordAuditEvent({
+          acao: "TRANSACTION_STATUS_TOGGLED",
+          modulo: "TRANSACTION",
+          o_que_fez: `Alterou status do lançamento '${target.description}' para '${nextStatus}'.`,
+          quem_nome: profile.name,
+          quem_email: profile.email,
+          antes: { id, status: target.status },
+          depois: { id, status: nextStatus },
+        });
         if (isOnlineToken(getAuthToken())) {
           void apiPatchTransactionStatus(id, nextStatus)
             .then((updated) => {
@@ -350,6 +420,15 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         }
       },
       remove: (id) => {
+        const target = transactions.find((t) => t.id === id);
+        recordAuditEvent({
+          acao: "TRANSACTION_DELETED",
+          modulo: "TRANSACTION",
+          o_que_fez: `Excluiu o lançamento '${target?.description || id}'.`,
+          quem_nome: profile.name,
+          quem_email: profile.email,
+          antes: target ? { ...target } : null,
+        });
         if (isOnlineToken(getAuthToken())) {
           void apiDeleteTransaction(id)
             .then(() => {
