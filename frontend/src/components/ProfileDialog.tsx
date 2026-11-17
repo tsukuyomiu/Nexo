@@ -78,7 +78,7 @@ export function ProfileDialog({
     setSaving(true);
     try {
       await updateProfile(result.data);
-      toast.success("Informações pessoais salvas no banco de dados!");
+      toast.success("Informações pessoais salvas com sucesso!");
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível atualizar o perfil.");
@@ -93,8 +93,7 @@ export function ProfileDialog({
         <DialogHeader>
           <DialogTitle>Editar informações pessoais</DialogTitle>
           <DialogDescription>
-            Alterações temporárias nesta sessão; não serão mantidas ao atualizar a página. O e-mail
-            não altera uma conta verificada.
+            Atualize seus dados cadastrais. As alterações ficam salvas no seu perfil e no sistema.
           </DialogDescription>
         </DialogHeader>
         <form method="post" onSubmit={submit} noValidate className="flex flex-col gap-4">

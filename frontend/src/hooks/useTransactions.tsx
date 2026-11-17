@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { emptyProfile, prepareProfile, type Profile } from "@/lib/profile";
+import { emptyProfile, loadLocalProfile, prepareProfile, saveLocalProfile, type Profile } from "@/lib/profile";
 import { loadCurrency, saveCurrency, type Currency } from "@/lib/preferences";
 import { endLocalScope, loadLocalScope, startLocalScope } from "@/lib/local-identity";
 import {
@@ -94,10 +94,14 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
 
     if (storedUser) {
       setRole(storedUser.role || "user");
+      const local = loadLocalProfile(storedUser.email);
       setProfile((prev) => ({
         ...prev,
-        name: storedUser.name || prev.name,
-        email: storedUser.email || prev.email,
+        name: local?.name || storedUser.name || prev.name,
+        email: local?.email || storedUser.email || prev.email,
+        phone: local?.phone || prev.phone,
+        birthDate: local?.birthDate || prev.birthDate,
+        address: local?.address || prev.address,
       }));
       if (storedUser.currency) setCurrencyState(storedUser.currency);
       if (typeof storedUser.twoFactorEnabled === "boolean") {
@@ -117,13 +121,15 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         apiGetMyProfile(),
         apiListTransactions(),
       ]);
-      setProfile({
+      const freshProfile = {
         name: remoteProfile.name || "",
         email: remoteProfile.email || "",
         phone: remoteProfile.phone || "",
         birthDate: remoteProfile.birthDate || "",
         address: remoteProfile.address || "",
-      });
+      };
+      setProfile(freshProfile);
+      saveLocalProfile(freshProfile);
       setRole(remoteProfile.role || "user");
       setCurrencyState(remoteProfile.currency || "BRL");
       setTwoFactorState(Boolean(remoteProfile.twoFactorEnabled));
@@ -140,6 +146,10 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       setTransactions(loadTransactions(savedScope));
+      if (storedUser) {
+        const local = loadLocalProfile(storedUser.email);
+        if (local) setProfile((prev) => ({ ...prev, ...local }));
+      }
     } finally {
       setLoaded(true);
     }
@@ -214,20 +224,35 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       },
       updateProfile: async (next) => {
         const prepared = prepareProfile(next);
+
+        // 1. Sempre salva localmente no navegador (garante que persista mesmo offline ou no Vercel)
+        saveLocalProfile(prepared);
+        const currentStored = getStoredAuthUser();
+        if (currentStored) {
+          setAuthSession(getAuthToken() || "offline-demo-token", {
+            ...currentStored,
+            name: prepared.name,
+            email: prepared.email,
+          });
+        }
+
+        // 2. Se houver conexão com o backend FastAPI, persiste no banco de dados SQL
         if (isOnlineToken(getAuthToken())) {
           try {
             const updated = await apiUpdateMyProfile(prepared);
-            setProfile({
+            const fresh = {
               name: updated.name,
               email: updated.email,
               phone: updated.phone,
               birthDate: updated.birthDate,
               address: updated.address,
-            });
+            };
+            setProfile(fresh);
+            saveLocalProfile(fresh);
             setRole(updated.role);
             return;
           } catch {
-            // fallback local
+            // fallback local preservado
           }
         }
         setProfile(prepared);
@@ -238,13 +263,16 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         const nextScope = await startLocalScope(user.email);
         setScope(nextScope);
         setRole(user.role || "user");
-        setProfile({
-          name: user.name,
-          email: user.email,
-          phone: "",
-          birthDate: "",
-          address: "",
-        });
+        const local = loadLocalProfile(user.email);
+        const initial = {
+          name: local?.name || user.name,
+          email: local?.email || user.email,
+          phone: local?.phone || "",
+          birthDate: local?.birthDate || "",
+          address: local?.address || "",
+        };
+        setProfile(initial);
+        saveLocalProfile(initial);
         setCurrencyState(user.currency || "BRL");
         setTwoFactorState(Boolean(user.twoFactorEnabled));
         await syncFromBackend();
@@ -253,7 +281,8 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         const nextScope = await startLocalScope(email);
         setScope(nextScope);
         setTransactions(loadTransactions(nextScope));
-        setProfile({ ...emptyProfile, email });
+        const local = loadLocalProfile(email);
+        setProfile(local || { ...emptyProfile, email });
         setLastAddedId(null);
         setLoaded(true);
       },

@@ -316,20 +316,20 @@ function LogsPage() {
           ) : (
             <div className="divide-y divide-border">
               {filteredTimeline.map((item) => {
-                const isWarning = item.severidade === "WARNING";
-                const isError = item.severidade === "ERROR" || item.severidade === "CRITICAL";
+                const severityIconMap: Record<string, React.ReactNode> = {
+                  ERROR: <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />,
+                  CRITICAL: <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />,
+                  WARNING: <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />,
+                };
+                const statusIcon = severityIconMap[item.severidade] ?? (
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-secondary" />
+                );
 
                 return (
                   <div key={item.log_id} className="p-4 transition-colors hover:bg-muted/30">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        {isError ? (
-                          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-                        ) : isWarning ? (
-                          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-                        ) : (
-                          <CheckCircle2 className="h-4 w-4 shrink-0 text-secondary" />
-                        )}
+                        {statusIcon}
 
                         <span className="text-sm font-bold text-foreground">{item.o_que_fez}</span>
                       </div>

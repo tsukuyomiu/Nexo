@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-// Perfil temporário somente em memória. A persistência definitiva e a verificação
-// do e-mail dependerão da API; nenhum dado pessoal é gravado no localStorage.
 export const profileSchema = z.object({
   name: z.string().trim().min(1, "Informe seu nome.").max(100, "Use até 100 caracteres."),
   email: z
@@ -31,8 +29,44 @@ export const profileSchema = z.object({
     ),
   address: z.string().trim().max(200, "Use até 200 caracteres."),
 });
+
 export type Profile = z.infer<typeof profileSchema>;
-export const emptyProfile: Profile = { name: "", email: "", phone: "", birthDate: "", address: "" };
+
+export const emptyProfile: Profile = {
+  name: "",
+  email: "",
+  phone: "",
+  birthDate: "",
+  address: "",
+};
+
 export function prepareProfile(input: Profile): Profile {
   return profileSchema.parse(input);
+}
+
+const PROFILE_STORAGE_PREFIX = "nexo:profile:";
+
+export function saveLocalProfile(profile: Profile): void {
+  if (typeof window === "undefined" || !profile.email) return;
+  try {
+    window.localStorage.setItem(
+      PROFILE_STORAGE_PREFIX + profile.email.trim().toLowerCase(),
+      JSON.stringify(profile),
+    );
+  } catch {
+    // quota safe
+  }
+}
+
+export function loadLocalProfile(email: string): Profile | null {
+  if (typeof window === "undefined" || !email) return null;
+  try {
+    const raw = window.localStorage.getItem(PROFILE_STORAGE_PREFIX + email.trim().toLowerCase());
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const result = profileSchema.safeParse(parsed);
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
 }

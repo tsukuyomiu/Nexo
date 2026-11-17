@@ -419,20 +419,21 @@ def export_audit_logs(
 
     rows = db.query(AuditLog).order_by(AuditLog.data_hora_utc.desc()).limit(limit).all()
 
-    if format.lower() == "json":
-        payload = [_row_to_audit_item(r).model_dump() for r in rows]
-        return Response(
-            content=json.dumps(payload, ensure_ascii=False, indent=2),
-            media_type="application/json",
-            headers={"Content-Disposition": 'attachment; filename="nexo_audit_logs.json"'},
-        )
-
-    csv_bytes = _build_csv_bytes(rows)
-    return Response(
-        content=csv_bytes,
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="nexo_audit_logs.csv"'},
-    )
+    match format.lower():
+        case "json":
+            payload = [_row_to_audit_item(r).model_dump() for r in rows]
+            return Response(
+                content=json.dumps(payload, ensure_ascii=False, indent=2),
+                media_type="application/json",
+                headers={"Content-Disposition": 'attachment; filename="nexo_audit_logs.json"'},
+            )
+        case _:
+            csv_bytes = _build_csv_bytes(rows)
+            return Response(
+                content=csv_bytes,
+                media_type="text/csv; charset=utf-8",
+                headers={"Content-Disposition": 'attachment; filename="nexo_audit_logs.csv"'},
+            )
 
 
 @router.post("/send-email")
@@ -559,9 +560,11 @@ def log_frontend_event(
     audit: AuditContext = Depends(get_audit_context),
 ) -> Dict[str, Any]:
     """Recebe eventos diretamente do Front-End e grava na trilha central `audit_logs`."""
-    sev = payload.severidade.upper()
-    if sev not in ("INFO", "WARNING", "ERROR", "CRITICAL"):
-        sev = "INFO"
+    match payload.severidade.upper():
+        case "INFO" | "WARNING" | "ERROR" | "CRITICAL" as valid_sev:
+            sev = valid_sev
+        case _:
+            sev = "INFO"
 
     record = record_audit_event(
         db,

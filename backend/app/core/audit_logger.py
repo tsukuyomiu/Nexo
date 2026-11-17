@@ -44,23 +44,27 @@ SENSITIVE_KEYS = {
 
 def sanitize_payload(data: Any) -> Any:
     """
-    Percorre dicionários e listas recursivamente mascarando qualquer chave sensível
-    com `[REDACTED]` para proteger credenciais nos logs.
+    Aplica Structural Pattern Matching (PEP 634 - match/case) para mascarar
+    qualquer chave sensível com `[REDACTED]`, evitando cadeias de if/else.
     """
-    if data is None:
-        return None
-    if isinstance(data, dict):
-        cleaned: Dict[str, Any] = {}
-        for key, value in data.items():
-            key_lower = str(key).strip().lower()
-            if key_lower in SENSITIVE_KEYS or "password" in key_lower or "senha" in key_lower:
-                cleaned[key] = "[REDACTED]"
-            else:
-                cleaned[key] = sanitize_payload(value)
-        return cleaned
-    if isinstance(data, list):
-        return [sanitize_payload(item) for item in data]
-    return data
+    match data:
+        case None:
+            return None
+        case dict():
+            return {
+                key: "[REDACTED]"
+                if (
+                    (key_lower := str(key).strip().lower()) in SENSITIVE_KEYS
+                    or "password" in key_lower
+                    or "senha" in key_lower
+                )
+                else sanitize_payload(value)
+                for key, value in data.items()
+            }
+        case list():
+            return [sanitize_payload(item) for item in data]
+        case _:
+            return data
 
 
 def _to_json_str(data: Any) -> Optional[str]:

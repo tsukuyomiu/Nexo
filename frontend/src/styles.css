@@ -274,12 +274,14 @@ body {
   will-change: transform, box-shadow;
 }
 
-/* Animação fluida e gentil ao passar o mouse */
-.nexo-card-hover {
+/* Animação fluida e gentil ao passar o mouse (Padrão BEM .nexo-card--hover) */
+.nexo-card-hover,
+.nexo-card--hover {
   cursor: default;
 }
 
-.nexo-card-hover:hover {
+.nexo-card-hover:hover,
+.nexo-card--hover:hover {
   transform: translateY(-3px);
   box-shadow:
     0 12px 28px -6px rgba(13, 33, 58, 0.09),
@@ -287,8 +289,9 @@ body {
   border-color: rgba(29, 99, 220, 0.3);
 }
 
-/* Superfície Azul-Marinho Oficial Nexo (destaque no Perfil e Sobre Nós) */
-.nexo-card-navy {
+/* Superfície Azul-Marinho Oficial Nexo (Padrão BEM .nexo-card--navy) */
+.nexo-card-navy,
+.nexo-card--navy {
   background: linear-gradient(135deg, #0d213a 0%, #15325b 100%);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.875rem;
@@ -303,7 +306,8 @@ body {
   will-change: transform, box-shadow;
 }
 
-.nexo-card-navy:hover {
+.nexo-card-navy:hover,
+.nexo-card--navy:hover {
   border-color: rgba(56, 189, 248, 0.35);
 }
 

@@ -53,13 +53,21 @@ def _migrate_sqlite_columns(cursor: sqlite3.Cursor) -> None:
 
 
 def apply_sql_schemas() -> None:
-    """Cria as tabelas do banco de dados utilizando os modelos ORM."""
+    """Executa os scripts SQL padronizados (com CTEs e Views) e garante as tabelas ORM."""
     Base.metadata.create_all(bind=engine)
     if is_sqlite:
         raw_conn = engine.raw_connection()
         try:
             cursor = raw_conn.cursor()
+            for filename in ["schema_usuarios.sql", "schema_projetos.sql"]:
+                sql_path: Path = SQL_DIR / filename
+                if sql_path.exists():
+                    cursor.executescript(sql_path.read_text(encoding="utf-8"))
             _migrate_sqlite_columns(cursor)
+            for filename in ["schema_relatorios.sql", "schema_logs.sql"]:
+                sql_path = SQL_DIR / filename
+                if sql_path.exists():
+                    cursor.executescript(sql_path.read_text(encoding="utf-8"))
             raw_conn.commit()
         finally:
             raw_conn.close()

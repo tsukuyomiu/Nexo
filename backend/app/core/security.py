@@ -39,29 +39,32 @@ def generate_uuid() -> str:
 
 
 def hash_password(password: str) -> str:
-    """
-    Gera um hash SHA-256 com salt para proteger a senha no banco de dados.
-    """
-    salt = secrets.token_hex(8)
-    hashed = hashlib.sha256(f"{salt}{password}".encode("utf-8")).hexdigest()
-    return f"{salt}${hashed}"
+    """Gera o hash SHA-256 da senha para proteger a credencial no banco de dados."""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 def verify_password(plain_password: str, stored_hash: str) -> bool:
-    """Verifica se a senha informada confere com o hash salvo."""
-    try:
-        # Suporte retrocompatível com hashes antigos
-        if stored_hash.startswith("pbkdf2_"):
-            parts = stored_hash.split("$")
-            salt, expected = parts[2], parts[3]
-            candidate = hashlib.pbkdf2_hmac("sha256", plain_password.encode("utf-8"), salt.encode("utf-8"), int(parts[1])).hex()
-            return hmac.compare_digest(candidate, expected)
-
-        salt, expected_hash = stored_hash.split("$", 1)
-        candidate = hashlib.sha256(f"{salt}{plain_password}".encode("utf-8")).hexdigest()
-        return hmac.compare_digest(candidate, expected_hash)
-    except Exception:
-        return False
+    """
+    Verifica se a senha informada confere com o hash salvo utilizando
+    Structural Pattern Matching (PEP 634 - match/case) em vez de if/else.
+    """
+    match stored_hash.split("$"):
+        case ["pbkdf2_sha256", iterations_str, salt, expected_hex]:
+            candidate = hashlib.pbkdf2_hmac(
+                "sha256",
+                plain_password.encode("utf-8"),
+                salt.encode("utf-8"),
+                int(iterations_str),
+            ).hex()
+            return hmac.compare_digest(candidate, expected_hex)
+        case [salt, expected_hash]:
+            candidate = hashlib.sha256(f"{salt}{plain_password}".encode("utf-8")).hexdigest()
+            return hmac.compare_digest(candidate, expected_hash)
+        case [expected_hash]:
+            candidate = hash_password(plain_password)
+            return hmac.compare_digest(candidate, expected_hash)
+        case _:
+            return False
 
 
 def generate_reset_code() -> str:

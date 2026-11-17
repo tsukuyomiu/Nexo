@@ -69,15 +69,15 @@ const PILLARS = [
   },
   {
     icon: Lock,
-    title: "Segurança e Autenticação 2FA",
+    title: "Segurança e Autenticação JWT",
     description:
-      "Senhas criptografadas com PBKDF2-HMAC-SHA256 (600.000 iterações OWASP), sessões JWT revogáveis, login social Google/Apple e verificação em duas etapas por e-mail.",
+      "Senhas protegidas com hash SHA-256, autenticação baseada em tokens JWT, validação de formulários em duas camadas e verificação de código por e-mail.",
   },
   {
     icon: Database,
-    title: "Engenharia SQL de Alta Performance",
+    title: "Arquitetura SQL com CTEs (WITH)",
     description:
-      "Modelagem relacional em 3ª Forma Normal com Views analíticas, constraints de integridade financeira e compatibilidade com SQLite (WAL) e PostgreSQL.",
+      "Modelagem relacional padronizada segundo os guias Simon Holywell e Mozilla SQL, utilizando Common Table Expressions (CTEs) e Views analíticas.",
   },
   {
     icon: FileSpreadsheet,
