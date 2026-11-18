@@ -87,15 +87,6 @@ O **Projeto Nexo** é uma plataforma web Full-Stack voltada para **Gestão Finan
 
 ---
 
-<h2 id="telas-do-projeto">Telas do Projeto</h2>
-
-<div align="center">
-  <img src="docs/images/signup.png" alt="Cadastro Faça parte da Nexo" width="400">
-  <img src="docs/images/login.png" alt="Login" width="400">
-  <img src="docs/images/password_reset.png" alt="Recuperação de Senha" width="400">
-  <img src="docs/images/password_reset_code.png" alt="Código de Segurança" width="400">
-</div>
-
 <br>
 
 O sistema é composto pelas seguintes telas e fluxos principais:
